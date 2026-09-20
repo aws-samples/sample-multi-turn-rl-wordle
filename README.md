@@ -26,8 +26,6 @@ prompt, tool, and reward for comparison.
 | Claude Haiku 4.5 | 82% | +0.950 | 4.44 | no |
 | DeepSeek v3.2 | 58% | +0.537 | 4.34 | no |
 | **gpt-oss-20b, after MTRL** | **34%** | **+0.111** | 5.4 | **yes** |
-| Nova 2 Pro (preview) | 30% | −0.001 | 4.70 | no |
-| Nova 2 Lite | 17% | −0.231 | 4.53 | no |
 | Qwen3-32B | 15% | −0.282 | 4.67 | no |
 | **gpt-oss-20b, base** | **7%** | −0.316 | — | no |
 
