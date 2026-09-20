@@ -1,0 +1,17 @@
+[project]
+name = "sample-multi-turn-rl-wordle"
+version = "0.1.0"
+description = "Train a 20B model to play Wordle with SageMaker Multi-Turn RL and Bedrock AgentCore"
+readme = "README.md"
+authors = [
+    { name = "Daniel Quang", email = "dxq@amazon.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "sagemaker-train>=1.21.0",
+    "strands-agents>=1.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"

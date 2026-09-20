@@ -1,0 +1,16 @@
+# Secrets (local environment files are never committed)
+.env.local
+
+# CDK Build Artifacts
+cdk/cdk.out/
+cdk/node_modules/
+
+# CLI Internals
+.cli/*
+
+# Ephemeral Staging
+.cache/*
+
+# deployed-state.json holds the deploying account's runtime/role ARNs. The
+# agentcore-cli template commits it for team sharing; for a public sample it
+# is deployer-specific noise, so keep it local.

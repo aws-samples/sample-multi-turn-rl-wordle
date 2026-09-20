@@ -1,0 +1,8 @@
+[
+  {
+    "name": "default",
+    "description": "Default target. Set your account ID; the region must match where you launch the training job.",
+    "account": "111122223333",
+    "region": "us-east-1"
+  }
+]

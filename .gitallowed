@@ -1,0 +1,6 @@
+# git-secrets allowlist (https://github.com/awslabs/git-secrets).
+# One regex per line; matches here are NOT treated as leaked secrets.
+
+# 111122223333 is the documented AWS example account ID used as the placeholder
+# in Wordle/agentcore/aws-targets.json. Readers replace it with their own.
+111122223333
