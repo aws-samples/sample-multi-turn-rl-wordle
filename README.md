@@ -91,7 +91,7 @@ get a gradient. The exact constants are at the top of
 │   └── app/Wordle/
 │       ├── main.py                 agent, environment, reward, RFT handler
 │       ├── test_env.py             offline tests, no AWS needed
-│       └── data/                   NYT word lists + per-word entropy
+│       └── data/                   NYT word lists + entropy: reward reference data, not training data
 ├── docs/architecture.{html,png}    the diagram above (SVG source + render)
 ├── make_dataset.py                 builds training/validation JSONL
 ├── run_mtrl_training.py            launches / attaches to the MTRL job
