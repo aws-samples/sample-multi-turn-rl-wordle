@@ -12,6 +12,7 @@ dependencies = [
     "strands-agents>=1.54.0",
 ]
 
-[build-system]
-requires = ["uv_build>=0.12.5,<0.13.0"]
-build-backend = "uv_build"
+# Scripts only, nothing to build or install. Without this, `uv run` tries to
+# build the project as a package and fails looking for src/<name>/__init__.py.
+[tool.uv]
+package = false

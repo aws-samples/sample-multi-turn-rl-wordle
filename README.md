@@ -15,32 +15,62 @@ learning a domain. The same pipeline runs unchanged on harder environments.
 Base `openai-reasoning-gpt-oss-20b` versus the same model after 100 MTRL
 steps, scored on 100 held-out secret words the policy never saw in training.
 Frontier models are run zero-shot through the **identical** environment,
-prompt, tool, and reward for comparison.
+prompt, tool, and reward for comparison. Every model runs at its default
+reasoning setting; the last column says what that was.
 
 > GitHub: `https://github.com/aws-samples/sample-multi-turn-rl-wordle`
 
-| Model | Solve rate | Mean reward | Mean turns | Trained on task? |
-|---|---:|---:|---:|:---:|
-| Optimal solver (information-theoretic) | 100% | +1.354 | 3.42 | — |
-| Claude Opus 5 | 95% | +1.226 | 3.82 | no |
-| Claude Haiku 4.5 | 82% | +0.950 | 4.44 | no |
-| DeepSeek v3.2 | 58% | +0.537 | 4.34 | no |
-| **gpt-oss-20b, after MTRL** | **34%** | **+0.111** | 5.4 | **yes** |
-| Qwen3-32B | 15% | −0.282 | 4.67 | no |
-| **gpt-oss-20b, base** | **7%** | −0.316 | — | no |
+| Model | Solve rate | Mean reward | Mean turns | Trained on task? | Reasoning / decoding |
+|---|---:|---:|---:|:---:|---|
+| Optimal solver (information-theoretic) | 100% | +1.354 | 3.42 | — | — |
+| Claude Opus 5 | 95% | +1.226 | 3.82 | no | adaptive thinking, high (default) |
+| Claude Haiku 4.5 | 82% | +0.950 | 4.44 | no | thinking off (default) |
+| **gpt-oss-20b, after MTRL** | **80%** | **+0.930** | 5.3 | **yes** | medium effort (default), temp 1.0 |
+| DeepSeek v3.2 | 58% | +0.537 | 4.34 | no | model default |
+| **gpt-oss-20b, base** | **39%** | **+0.237** | 3.91 | no | medium effort (default), temp 1.0 |
+| Qwen3-32B | 15% | −0.282 | 4.67 | no | model default |
 
-Validation solve rate over training (`val/reward/pass_at_1` from MLflow):
+The two gpt-oss-20b rows are the mean of SageMaker evaluation jobs
+(`run_mtrl_eval.py`) at the model's default reasoning effort and the
+training temperature; the trained row averages two runs (81%, 79%). The
+frontier rows are `eval_frontier.py` against Bedrock at each model's
+defaults. Training more than doubled the solve rate of a 20B model and
+brought it level with Claude Haiku 4.5 on this task, at a mean reward within
+0.02 of Haiku's.
+
+### The learning curve is measured differently
+
+The training service scores its validation pass at **temperature 0** with
+the effort the agent was deployed with (`low` here), and neither is
+configurable. That is the curve MLflow shows (`val/reward/pass_at_1`):
 
 ```
 step:   0     10    20    30    40    50    60    70    80    90    100
        0.07  0.25  0.29  0.28  0.31  0.38  0.39  0.35  0.33  0.33  0.34
 ```
 
-Read this honestly: RL took a model that could barely play (7%) to one that
-beats several larger untrained models, a ~5x improvement, and the gain
-plateaued around step 60. It is still far from a frontier model. Both facts
-are part of the story. See [What we learned](#what-we-learned) for what
-would move the number further.
+It is a faithful signal that training is working (7% → 34%), but it
+understates the adapter by a wide margin. Evaluating the same model package
+at the settings you would actually serve it at tells a different story:
+
+| gpt-oss-20b | Effort | Temp | Solve rate | Mean reward | Mean turns |
+|---|---|---:|---:|---:|---:|
+| base | low | 0 | 7% | −0.316 | 2.84 |
+| trained | low | 0 | 34% | +0.111 | 5.40 |
+| base | medium | 0 | 12% | −0.222 | 2.62 |
+| trained | medium | 0 | 33% | +0.150 | 4.01 |
+| base | low | 1.0 | 14% | −0.210 | 3.36 |
+| trained | low | 1.0 | 60% | +0.554 | 5.86 |
+| base | medium | 1.0 | 39% | +0.237 | 3.91 |
+| **trained** | **medium** | **1.0** | **81%, 79%** | **+0.948, +0.911** | 5.19, 5.37 |
+
+Greedy decoding is what holds the numbers down: at temperature 0 the model
+tends to stop after two or three guesses (see the turn counts), at either
+effort. Once sampling is on, reasoning effort adds another 20 to 25 points,
+and the adapter adds 20 to 46 points in every cell. Temperature 1.0 is also
+what training sampled at, so the trained model is in-distribution there.
+The lesson generalizes: **evaluate at the settings you will serve at**, not
+only with the curve the training job gives you.
 
 ## How it works
 
@@ -93,6 +123,7 @@ get a gradient. The exact constants are at the top of
 ├── docs/architecture.{html,png}    the diagram above (SVG source + render)
 ├── make_dataset.py                 builds training/validation JSONL
 ├── run_mtrl_training.py            launches / attaches to the MTRL job
+├── run_mtrl_eval.py                SageMaker evaluation jobs: base vs trained at chosen temperature
 ├── eval_frontier.py                zero-shot baseline for any Bedrock model
 ├── training-data.jsonl             600 unique secret words
 └── validation-data.jsonl           100 unique, disjoint from training
@@ -189,14 +220,49 @@ Reattach to a running job at any time:
 uv run python run_mtrl_training.py --attach <JOB_NAME> --role-arn ... --s3-output-path ...
 ```
 
-### 5. Baseline any Bedrock model
+### 5. Evaluate the trained model at serving settings
+
+The training job's validation curve is scored at temperature 0 and the
+deployed reasoning effort. To score the model package (and the base model)
+at the settings you will actually serve, launch SageMaker evaluation jobs
+against the same runtime and reward:
+
+```bash
+uv run python run_mtrl_eval.py --runs base:1.0 trained:1.0 \
+  --model-package-arn <OUTPUT_MODEL_PACKAGE_ARN> \
+  --agent-runtime-arn <RUNTIME_ARN> \
+  --role-arn arn:aws:iam::<ACCOUNT>:role/<JOB_ROLE> \
+  --dataset s3://<BUCKET>/wordle-mtrl/validation/validation-data.jsonl \
+  --s3-output-path s3://<BUCKET>/wordle-mtrl/eval/ \
+  --mlflow-app-arn arn:aws:sagemaker:<REGION>:<ACCOUNT>:mlflow-app/<APP_ID>
+```
+
+Each run is 100 rollouts and takes about seven minutes; metrics land in
+MLflow under `eval/reward/*`. Only one evaluation job runs at a time per
+account, so the script runs `--runs` sequentially. Reasoning effort is not a
+job parameter: change `REASONING_EFFORT` in `agentcore.json`, `agentcore
+deploy`, evaluate, then deploy the training value back. Never redeploy while
+a training or evaluation job is running.
+
+The `HyperParameters` the API accepts are flat strings named
+`eval_group_size`, `temperature`, `sampling_top_p`, `sampling_max_tokens`,
+`pass_k_values`, `success_threshold`, `rollout_timeout`,
+`rollout_max_concurrency`, `rollout_max_retries`. The nested form in the
+docs and the `sampling_temperature` / `top_p` / `max_tokens` names the
+SDK's `MultiTurnRLEvaluator` emits are both rejected by schema validation;
+the error message lists the accepted names.
+
+### 6. Baseline any Bedrock model
 
 ```bash
 uv run python eval_frontier.py --model global.anthropic.claude-opus-5 --n 100
 ```
 
-Runs the same environment and reward against a Bedrock model so the number
-is directly comparable to MLflow's `val/reward/pass_at_1`.
+Runs the same environment and reward against a Bedrock model. The harness
+sends no reasoning or thinking parameters, so each model runs at its Bedrock
+default: adaptive thinking at high effort for Claude Opus 5, thinking off for
+Claude Haiku 4.5, medium effort for gpt-oss. Record that alongside the
+number.
 
 By default this uses the Converse API. Some models only support tool calling
 through Bedrock Mantle, and Claude models on Mantle expose the Anthropic
@@ -245,7 +311,13 @@ Set in `run_mtrl_training.py`. The ones that mattered:
 `REASONING_EFFORT=low` is set as a runtime env var in `agentcore.json`; both
 gpt-oss and Nova 2 honor it as a request parameter. `REASONING_PROMPT_HINT`
 additionally prepends `Reasoning: low` to the system prompt, which is the
-Harmony convention gpt-oss expects and which Nova should not receive.
+Harmony convention gpt-oss expects and which Nova should not receive. Low
+effort cut sample tokens by about 80% during training. The adapter it
+produced transfers to medium effort at serving time (60% → 80% in the matrix
+above), so training at low and serving at the model's default is a
+reasonable trade; training at medium is untested here and would cost
+roughly 3x the sample tokens (mean response 804 vs 280 tokens in the
+evaluation jobs).
 
 ## What we learned
 
@@ -298,8 +370,18 @@ which for this reward function means "solved." Scraping CloudWatch for
 training and validation rollouts and dropped rollouts that ended in
 exceptions.
 
-**What would improve the 34%.** Validation solve rate peaked at 39% around
-step 60 and drifted down, so more steps alone won't help. The most promising
+**The validation curve is not the serving number.** The training job scores
+validation at temperature 0 with the deployed reasoning effort, and you
+cannot change either. For this task greedy decoding makes the model quit
+after two or three guesses, so the curve topped out at 34% while the same
+model package scores 80% at medium effort and temperature 1.0 (the
+[matrix above](#the-learning-curve-is-measured-differently)). Run
+`run_mtrl_eval.py` at your serving settings before drawing conclusions from
+the curve, and use the curve for what it is good at: showing whether
+training is still improving.
+
+**What would improve it further.** Validation solve rate peaked around step
+60 and drifted down, so more steps alone won't help. The most promising
 untried change is a curriculum: seed games with 0–4 prior guesses so the
 policy learns deduction without first surviving the opening, which
 wordle-lora-rl reports as its single biggest gain. Raising `group_size` is
