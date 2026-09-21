@@ -20,15 +20,15 @@ reasoning setting; the last column says what that was.
 
 > GitHub: `https://github.com/aws-samples/sample-multi-turn-rl-wordle`
 
-| Model | Solve rate | Mean reward | Mean turns | Trained on task? | Reasoning / decoding |
+| Model | Parameters | Solve rate | Mean reward | Trained on task? | Reasoning / decoding |
 |---|---:|---:|---:|:---:|---|
-| Optimal solver (information-theoretic) | 100% | +1.354 | 3.42 | — | — |
-| Claude Opus 5 | 95% | +1.226 | 3.82 | no | adaptive thinking, high (default) |
-| Claude Haiku 4.5 | 82% | +0.950 | 4.44 | no | thinking off (default) |
-| **gpt-oss-20b, after MTRL** | **80%** | **+0.930** | 5.3 | **yes** | medium effort (default), temp 1.0 |
-| DeepSeek v3.2 | 58% | +0.537 | 4.34 | no | model default |
-| **gpt-oss-20b, base** | **39%** | **+0.237** | 3.91 | no | medium effort (default), temp 1.0 |
-| Qwen3-32B | 15% | −0.282 | 4.67 | no | model default |
+| Optimal solver (information-theoretic) | — | 100% | +1.354 | — | — |
+| Claude Opus 5 | undisclosed | 95% | +1.226 | no | adaptive thinking, high (default) |
+| Claude Haiku 4.5 | undisclosed | 82% | +0.950 | no | thinking off (default) |
+| **gpt-oss-20b, after MTRL** | 21B (3.6B active) | **80%** | **+0.930** | **yes** | medium effort (default), temp 1.0 |
+| DeepSeek v3.2 | 671B (37B active) | 58% | +0.537 | no | model default |
+| **gpt-oss-20b, base** | 21B (3.6B active) | **39%** | **+0.237** | no | medium effort (default), temp 1.0 |
+| Qwen3-32B | 32B | 15% | −0.282 | no | model default |
 
 The two gpt-oss-20b rows are the mean of SageMaker evaluation jobs
 (`run_mtrl_eval.py`) at the model's default reasoning effort and the
@@ -53,7 +53,7 @@ It is a faithful signal that training is working (7% → 34%), but it
 understates the adapter by a wide margin. Evaluating the same model package
 at the settings you would actually serve it at tells a different story:
 
-| gpt-oss-20b | Effort | Temp | Solve rate | Mean reward | Mean turns |
+| gpt-oss-20b | Effort | Temp | Solve rate | Mean reward | Model calls per game |
 |---|---|---:|---:|---:|---:|
 | base | low | 0 | 7% | −0.316 | 2.84 |
 | trained | low | 0 | 34% | +0.111 | 5.40 |
@@ -64,9 +64,11 @@ at the settings you would actually serve it at tells a different story:
 | base | medium | 1.0 | 39% | +0.237 | 3.91 |
 | **trained** | **medium** | **1.0** | **81%, 79%** | **+0.948, +0.911** | 5.19, 5.37 |
 
-Greedy decoding is what holds the numbers down: at temperature 0 the model
-tends to stop after two or three guesses (see the turn counts), at either
-effort. Once sampling is on, reasoning effort adds another 20 to 25 points,
+"Model calls per game" is the service's `turns/mean`: every policy
+invocation in a rollout, including invalid calls and the closing message, so
+it can exceed six. Greedy decoding is what holds the numbers down: at
+temperature 0 the model tends to stop after two or three calls without
+finishing the game, at either effort. Once sampling is on, reasoning effort adds another 20 to 25 points,
 and the adapter adds 20 to 46 points in every cell. Temperature 1.0 is also
 what training sampled at, so the trained model is in-distribution there.
 The lesson generalizes: **evaluate at the settings you will serve at**, not

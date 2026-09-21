@@ -179,7 +179,7 @@ def main_cli():
     if errs:
         print(f"  errors                     : {len(errs)}  e.g. {errs[0][:110]}")
     print(f"\n  reference: optimal play = +1.354 mean / 100% pass@1 / 3.42 turns")
-    print(f"             trained GPT-OSS  = +0.111 mean /  34% pass@1 / 5.4 turns")
+    print(f"             trained gpt-oss-20b (medium effort, temp 1.0) = +0.930 mean / 80% pass@1")
 
 
 if __name__ == "__main__":
