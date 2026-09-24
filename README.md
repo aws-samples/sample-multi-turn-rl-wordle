@@ -25,6 +25,7 @@ reasoning setting; the last column says what that was.
 | Optimal solver (information-theoretic) | — | 100% | +1.354 | — | — |
 | Claude Opus 5 | undisclosed | 95% | +1.226 | no | adaptive thinking, high (default) |
 | Claude Haiku 4.5 | undisclosed | 82% | +0.950 | no | thinking off (default) |
+| gpt-oss-120b | 117B (5.1B active) | 81% | +0.981 | no | medium effort (default) |
 | **gpt-oss-20b, after MTRL** | 21B (3.6B active) | **80%** | **+0.930** | **yes** | medium effort (default), temp 1.0 |
 | DeepSeek v3.2 | 671B (37B active) | 58% | +0.537 | no | model default |
 | **gpt-oss-20b, base** | 21B (3.6B active) | **39%** | **+0.237** | no | medium effort (default), temp 1.0 |
@@ -35,8 +36,8 @@ The two gpt-oss-20b rows are the mean of SageMaker evaluation jobs
 training temperature; the trained row averages two runs (81%, 79%). The
 frontier rows are `eval_frontier.py` against Bedrock at each model's
 defaults. Training more than doubled the solve rate of a 20B model and
-brought it level with Claude Haiku 4.5 on this task, at a mean reward within
-0.02 of Haiku's.
+brought it level with Claude Haiku 4.5 and with its own 117B sibling,
+gpt-oss-120b, on this task, at a mean reward within 0.02 of Haiku's.
 
 ### The learning curve is measured differently
 
