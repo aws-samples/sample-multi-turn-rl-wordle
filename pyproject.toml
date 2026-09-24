@@ -8,8 +8,10 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "aws-bedrock-token-generator>=1.1.0",
+    "bedrock-agentcore>=1.9.1",
     "sagemaker-train>=1.21.0",
-    "strands-agents>=1.54.0",
+    "strands-agents[anthropic,openai]>=1.54.0",
 ]
 
 # Scripts only, nothing to build or install. Without this, `uv run` tries to
