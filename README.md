@@ -30,6 +30,7 @@ for use in a production environment.
   - [4. Launch training](#4-launch-training)
   - [5. Evaluate the trained model at serving settings](#5-evaluate-the-trained-model-at-serving-settings)
   - [6. Baseline any Bedrock model](#6-baseline-any-bedrock-model)
+  - [7. Clean up](#7-clean-up)
 - [The Reinforcement Learning Strategy](#the-reinforcement-learning-strategy)
 - [Results and Analysis](#results-and-analysis)
 - [Lessons Learned](#lessons-learned)
@@ -72,37 +73,72 @@ real value of MTRL is making a small, cost-effective model good at a
 proprietary multi-step task that no frontier model has seen. Everything here
 carries over to that setting unchanged.
 
-### What the model sees
+### An example rollout
 
 The model plays through a single tool, `guess_word`. After each guess the
 environment returns per-letter feedback and a plain-English summary of
-everything known so far. This is real output from the environment in this
-repository, for the secret word GLOBE:
+everything known so far. Below is one complete rollout of the **trained
+model**, taken from the AgentCore runtime traces of an evaluation job (medium
+reasoning effort, temperature 1.0). The secret word was FLARE. The model's
+reasoning is shown as it was generated, lightly trimmed on the last turn.
 
 ```
->>> guess_word('SLATE')
-Guess 1/6: SLATE -> S=gray, L=green, A=gray, T=gray, E=green
-Current Knowledge:
-- Correct Position (Green): _ L _ _ E
-- In Word, Wrong Position (Yellow): None
-- Not in Word (Gray): A, S, T
-- Words Already Guessed: SLATE
-- Guesses Remaining: 5
+[model] Reasoning: I must send the first guess immediately. The prompt instructs
+        to choose a strong opener. Common words with distinct letters: "crane",
+        "slate", "arise", "audio"? "slate" is good. I'll guess "slate".
+        Tool call: guess_word(guess="slate")
 
->>> guess_word('BLOKE')
-Guess 2/6: BLOKE -> B=yellow, L=green, O=green, K=gray, E=green
-Current Knowledge:
-- Correct Position (Green): _ L O _ E
-- In Word, Wrong Position (Yellow): 'B' (at least 1)
-- Not in Word (Gray): A, K, S, T
-- Words Already Guessed: SLATE, BLOKE
-- Guesses Remaining: 4
+[tool]  Guess 1/6: SLATE -> S=gray, L=green, A=green, T=gray, E=green
+        Current Knowledge:
+        - Correct Position (Green): _ L A _ E
+        - In Word, Wrong Position (Yellow): None
+        - Not in Word (Gray): S, T
+        - Words Already Guessed: SLATE
+        - Guesses Remaining: 5
 
->>> guess_word('GLOBE')
-Guess 3/6: GLOBE — all green. Correct, you solved it!
+[model] Reasoning: We have L A E at positions 2,3,5. So pattern _ L A _ E.
+        Unknown letters for positions 1 and 4, not S or T. Use a word with new
+        letters. "blaze"? B L A Z E fits: B in pos1, Z pos4. Both new letters.
+        Tool call: guess_word(guess="blaze")
+
+[tool]  Guess 2/6: BLAZE -> B=gray, L=green, A=green, Z=gray, E=green
+        Current Knowledge:
+        - Correct Position (Green): _ L A _ E
+        - In Word, Wrong Position (Yellow): None
+        - Not in Word (Gray): B, S, T, Z
+        - Words Already Guessed: SLATE, BLAZE
+        - Guesses Remaining: 4
+
+[model] Reasoning: We know pattern _LA_E, letters outside: B,S,T,Z. We need new
+        letters for positions 1 and 4. "flame" fits: F L A M E. That's 4 = M.
+        F not in gray list. Good guess.
+        Tool call: guess_word(guess="flame")
+
+[tool]  Guess 3/6: FLAME -> F=green, L=green, A=green, M=gray, E=green
+        Current Knowledge:
+        - Correct Position (Green): F L A _ E
+        - In Word, Wrong Position (Yellow): None
+        - Not in Word (Gray): B, M, S, T, Z
+        - Words Already Guessed: SLATE, BLAZE, FLAME
+        - Guesses Remaining: 3
+
+[model] Reasoning: We know pattern "FLA_E". Fourth letter unknown, M is not in
+        the word. So we need a word F L A ? E. [...] "flare"
+        Tool call: guess_word(guess="flare")
+
+[tool]  Guess 4/6: FLARE — all green. Correct, you solved it!
+
+[model] Word is FLARE.
 ```
 
-When the game ends, the agent returns one number, the reward: **+1.385** for
+A few things to notice. The model opens with a strong word, keeps every green
+letter in place, never reuses a gray letter, and spends its unknown positions
+on letters it has not tried. It also reasons briefly on the early turns and at
+length only on the last one, when the candidate set is small. None of this
+was in the training data. The dataset contains only secret words, and the
+model learned the strategy from the reward.
+
+When the game ends, the agent returns one number, the reward: **+1.292** for
 this game. How that number is built is covered in
 [The Reinforcement Learning Strategy](#the-reinforcement-learning-strategy).
 
@@ -244,10 +280,40 @@ uv run python test_env.py
 uv run python make_dataset.py      # 600 train / 100 val, all unique, seed 42
 ```
 
-Each row is `{"prompt": "<JSON string>"}`. The MTRL service passes the
-`prompt` column to the agent verbatim, so the secret word is packed inside
-that string and `parse_task()` in `main.py` unpacks it. The model never sees
-the answer; only the environment and the reward function do.
+This writes `training-data.jsonl` (600 rows) and `validation-data.jsonl` (100
+rows, no overlap with training). Here are the first three training rows:
+
+```jsonl
+{"prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"carat\", \"id\": \"wordle_train_0000\"}"}
+{"prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"valet\", \"id\": \"wordle_train_0001\"}"}
+{"prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"botch\", \"id\": \"wordle_train_0002\"}"}
+```
+
+Each row has one column, `prompt`, and its value is a string. The MTRL
+service reads that column and passes the string to the agent verbatim; it
+does not parse or validate it. So the row packs everything the agent needs
+into a small JSON object, which `parse_task()` in `main.py` unpacks:
+
+```json
+{
+  "prompt": "Guess the 5-letter word",
+  "answer": "carat",
+  "id": "wordle_train_0000"
+}
+```
+
+- `prompt` is the instruction shown to the policy model. It is identical on
+  every row, because every game starts the same way.
+- `answer` is the secret word. It stays inside the environment: the model
+  never sees it, only the feedback the environment computes from it.
+- `id` identifies the row in logs.
+
+That is the whole dataset. There are no example games, no target responses,
+and no labels in the usual sense. The service also accepts Parquet, JSON, and
+CSV, and for tasks that need more context a row can carry a full message
+list, tool configuration, or reward specification in the same string. See
+[Prompt dataset format](https://docs.aws.amazon.com/sagemaker/latest/dg/model-customize-mtrl-assets.html)
+in the SageMaker AI documentation.
 
 ### 3. Deploy the agent
 
@@ -365,6 +431,33 @@ uv run python eval_frontier.py --model anthropic.claude-opus-5 --mantle messages
 Check the model's Bedrock model card for which endpoint and API carry
 client-side tool calling.
 
+### 7. Clean up
+
+Training and evaluation jobs stop billing when they complete, but the
+AgentCore runtime, its IAM role, the MLflow app, and the S3 objects persist.
+
+```bash
+# 1. Agent runtime and its execution role. `remove all` resets the project
+#    config; the next deploy sees the empty state and tears down the resources.
+cd Wordle
+agentcore remove all
+agentcore deploy
+
+# 2. MLflow app
+aws sagemaker delete-mlflow-app --arn arn:aws:sagemaker:<REGION>:<ACCOUNT>:mlflow-app/<APP_ID>
+
+# 3. Datasets, job output, and evaluation output
+aws s3 rm s3://<BUCKET>/wordle-mtrl/ --recursive
+```
+
+`remove all` rewrites the files under `Wordle/agentcore/`, so run
+`git checkout -- Wordle/agentcore/` afterward if you want to redeploy later.
+Deleting the CloudFormation stack directly
+(`aws cloudformation delete-stack --stack-name AgentCore-Wordle-default`)
+removes the same resources without touching the project files. The training
+job role and the model packages in the output model package group are not
+billed, so you can keep them for a future run.
+
 ---
 
 ## The Reinforcement Learning Strategy
@@ -424,12 +517,15 @@ can move a reward by at most 0.15 in either direction. That is enough to
 separate two games with the same outcome, but nowhere near the 1.5 gap between
 the slowest solve and a loss.
 
-Take the GLOBE game above. SLATE, BLOKE, GLOBE solves on guess 3 for an
-outcome of 1.3 and scores **+1.385**. The same solve through SLATE, CHORE,
-GLOBE scores **+1.356**: CHORE drops the known green L, and the green-violation
-penalty wipes out that guess's bonuses. Both games won, but one was played
-better, and GRPO needs exactly that kind of difference between rollouts to
-compute a gradient. The constants live at the top of `Wordle/app/Wordle/main.py`.
+Take the FLARE rollout above. Solving on guess 4 gives an outcome of 1.2, and
+the shaping total of +91.9 (a strong opener, new letters on every turn, no
+violations) adds 0.092, for **+1.292**. Had the model wasted a guess on STALE
+before FLARE, which repeats two gray letters and misplaces three greens, the
+same word would have scored **+1.100**: the outcome drops to 1.1 for a
+five-guess solve, and the violation penalties cancel the shaping entirely.
+Both games won, but one was played better, and GRPO needs exactly that kind
+of difference between rollouts to compute a gradient. The constants live at
+the top of `Wordle/app/Wordle/main.py`.
 
 ### Hyperparameters
 
