@@ -67,12 +67,10 @@ HYPERPARAMETERS = {
     "val_every": 10,
     "lora_rank": 32,
     "lora_alpha": 64,
-    # 1e-5 is the documented default for BOTH supported models (verified via
-    # trainer.hyperparameters.get_info()). The workshop's 4e-5 is SOP-Bench
-    # task-specific tuning, not a model default; carrying it over caused
-    # catastrophic drift on Nova (structured tool calling collapsed to raw text
-    # by step 15) and 4% raw-text drift on GPT-OSS by step 66. Raise it only
-    # with evidence.
+    # The workshop's 4e-5 is SOP-Bench task-specific tuning; carrying it over
+    # caused catastrophic drift on Nova (structured tool calling collapsed to
+    # raw text by step 15) and 4% raw-text drift on GPT-OSS by step 66. Raise
+    # it only with evidence.
     "learning_rate": 1e-5,
     "adam_beta1": 0.9,
     "adam_beta2": 0.95,

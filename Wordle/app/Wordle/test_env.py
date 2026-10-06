@@ -22,7 +22,8 @@ r = g.guess("BEACH")
 assert g.solved and "solved" in r
 assert g.final_reward() > 1.0, g.final_reward()
 
-# ── outcome ordering: faster solve > slower solve > loss > never played ──────
+# ── outcome ordering: solve > loss > never played always holds; speed ordering
+# is checked on these sample games only (shaping can reorder solves one guess apart)
 def _play(answer, words):
     game = WordleGame(answer)
     for w in words:

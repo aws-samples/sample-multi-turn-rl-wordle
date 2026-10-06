@@ -179,7 +179,7 @@ for the current list):
 
 | Base model | AWS Regions |
 |---|---|
-| Nova Lite 2.0 | us-east-1, us-west-2 |
+| Nova 2 Lite | us-east-1, us-west-2 |
 | GPT-OSS-20B | us-east-1, us-west-2 |
 | Gemma 4 31B (instruction-tuned) | us-west-2 |
 | Qwen 3.6 27B | us-west-2 |
@@ -481,9 +481,11 @@ reward = outcome + 0.15 * clip(shaping, -1, 1)
 | Played all six, unsolved | −0.5 |
 | Never made a valid guess | −1.5 |
 
-Every solve beats every loss, faster solves beat slower ones, and never playing
-is strictly the worst result. `test_env.py` asserts this ordering, so an edit
-cannot silently break it.
+Every solve beats every loss, and never playing is strictly the worst result.
+Speed dominates across solves, though shaping (up to ±0.15) can reorder two
+solves one guess apart: a guess-3 solve with full shaping (+1.45) outscores a
+guess-2 solve with the minimum (+1.25). `test_env.py` asserts this ordering on
+sample games, so an edit cannot silently break it.
 
 ### 2. Shaping: penalties for rule violations and mistakes (the "stick")
 
@@ -535,7 +537,7 @@ Set in `run_mtrl_training.py`. The ones that mattered:
 
 | Parameter | Value | Why |
 |---|---|---|
-| `learning_rate` | **1e-5** | The documented default for both supported models. |
+| `learning_rate` | **1e-5** | At 4e-5, Nova's structured tool calls collapsed into plain text by step 15, and gpt-oss began the same drift. |
 | `sampling_max_tokens` | 8192 | The service cap. 4096 truncated gpt-oss mid-reasoning before its first tool call. |
 | `temperature` | 1.0 | 1.2 was tried to diversify openers; it wasn't needed and hotter sampling helps a policy wander off its tool-call template. |
 | `group_size` | 4 | GRPO group. Reward stdev within groups was reported as 0 at points, so 8–16 is the next thing to try. |

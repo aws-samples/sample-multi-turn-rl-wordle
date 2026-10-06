@@ -463,10 +463,10 @@ class WordleGame:
     def final_reward(self) -> float:
         """Rollout reward: a dominant outcome term plus bounded shaping.
 
-        Ordering is guaranteed by construction:
-          fast solve > slow solve > loss > never played
-        Shaping only moves a result within its tier, so it can never make a
-        loss look like a win, but it still varies between rollouts -- which is
+        Guaranteed by construction: any solve > any loss > never played.
+        Within solves, each guess saved adds 0.1 to the outcome term, but
+        shaping (up to +/-0.15) can reorder two solves one guess apart.
+        Shaping can never make a loss look like a win, but it still varies between rollouts -- which is
         what GRPO needs to compute a non-zero advantage.
         """
         if not self.guesses:
@@ -479,7 +479,7 @@ class WordleGame:
 
         if self.solved:
             # 1.0 for solving on the final guess, up to 1.5 for a first-guess
-            # solve, so fewer guesses is always strictly better.
+            # solve, so fewer guesses earn a larger outcome term.
             speed = (MAX_GUESSES - len(self.guesses)) / (MAX_GUESSES - 1)
             outcome = SOLVE_BASE_REWARD + SOLVE_SPEED_BONUS * speed
         else:
