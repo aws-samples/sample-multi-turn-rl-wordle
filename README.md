@@ -346,9 +346,11 @@ error reporting.
 aws bedrock-agentcore invoke-agent-runtime \
   --agent-runtime-arn <RUNTIME_ARN> \
   --runtime-session-id smoke-test-$(date +%s)000000000000000 \
-  --payload fileb://<(echo '{"prompt":"{\"prompt\":\"Guess the 5-letter word\",\"answer\":\"beach\",\"id\":\"t0\"}","metadata":{"jobArn":"arn:aws:sagemaker:us-east-1:111122223333:job/AgentRFT/x","rolloutId":"r1"}}') \
-  /dev/stdout
+  --payload fileb://payload.json /dev/stdout
 ```
+
+Run this from `Wordle/`. [`payload.json`](Wordle/payload.json) holds one task
+row in the `prompt` field and a fake `jobArn` in `metadata`.
 
 ### 4. Launch training
 
@@ -765,3 +767,7 @@ guesses) follow the information-theoretic approach popularized by
 ## License
 
 MIT-0 (MIT No Attribution). See [LICENSE](LICENSE).
+
+Portions of the Wordle environment, reward, and word lists come from
+[wordle-lora-rl](https://github.com/charbull/wordle-lora-rl) under the MIT
+License. See [THIRD-PARTY-LICENSES](THIRD-PARTY-LICENSES).

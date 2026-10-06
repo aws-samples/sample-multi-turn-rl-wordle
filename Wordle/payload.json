@@ -1,0 +1,7 @@
+{
+  "prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"beach\", \"id\": \"smoke-test\"}",
+  "metadata": {
+    "jobArn": "arn:aws:sagemaker:us-east-1:111122223333:job/AgentRFT/smoke-test",
+    "rolloutId": "r1"
+  }
+}
