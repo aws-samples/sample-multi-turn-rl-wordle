@@ -235,8 +235,9 @@ CRITICAL - how to respond:
 RETRY_PROMPT = ("Call the guess_word tool right now with any common 5-letter "
                 "word. Do not write any reasoning first.")
 
-# Retries exist only to rescue a rollout that never played a guess, which would
-# otherwise fail the whole job. They are bounded twice over: by attempt count
+# Retries exist to rescue a rollout that never played a guess. Such a game is
+# not fatal (it scores NO_PLAY_REWARD), but a retry turns it into a real game
+# with a useful reward. Retries are bounded twice over: by attempt count
 # and by wall clock. Three full 6-guess conversations could outlast the
 # service's reward window, which fails the job with "The rollout completed but
 # no reward was received in time" -- so stop retrying once the budget is spent
@@ -589,12 +590,13 @@ def handle_rollout(payload):
         """
         return game.guess(guess)
 
-    # A rollout that never plays a guess is fatal to the whole training job
-    # ("No sampling requests were received for this rollout"), and signalling
-    # {"status": "error"} is equally fatal ("The agent signaled that the
-    # trajectory failed"). GPT-OSS-20B sometimes burns the entire token budget
-    # reasoning before its first tool call, so retry with a fresh conversation
-    # until at least one guess lands.
+    # Two things are fatal to the whole training job: a rollout that never
+    # reaches the policy model ("No sampling requests were received for this
+    # rollout", seen when every Sample call failed auth with 403), and
+    # signalling {"status": "error"} ("The agent signaled that the trajectory
+    # failed"). A game with zero guesses is not fatal; it scores NO_PLAY_REWARD.
+    # GPT-OSS-20B sometimes burns the entire token budget reasoning before its
+    # first tool call, so retry with a fresh conversation to get a real game.
     global _reasoning_effort_ok
     agent = None
     deadline = time.monotonic() + ROLLOUT_BUDGET_SECONDS

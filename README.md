@@ -667,11 +667,14 @@ Most of the early failures were integration bugs, not RL problems.
 - **Never redeploy the agent while a job is running.** It restarts the
   runtime, in-flight rollouts see no sampling requests, and the service fails
   the whole job.
-- **Always return a reward.** A rollout with zero guesses fails the entire job
-  (`No sampling requests were received`), and so does returning
-  `{"status": "error"}` (`The agent signaled that the trajectory failed`). The
-  agent retries a zero-guess rollout once with a fresh conversation, bounded by
-  a wall-clock budget so it can't outrun the reward-reporting window.
+- **Always return a reward.** A rollout that never reaches the policy model
+  fails the entire job (`No sampling requests were received`); we hit this when
+  every model call failed authentication. Returning `{"status": "error"}` fails
+  it too (`The agent signaled that the trajectory failed`). A game where the
+  model is sampled but never makes a valid guess is fine: it scores −1.5, and
+  the 100-step run had 15. The agent still retries a zero-guess rollout once
+  with a fresh conversation, bounded by a wall-clock budget so it can't outrun
+  the reward-reporting window.
 
 ### Lesson 2: Summing per-guess rewards inverts the incentives
 
