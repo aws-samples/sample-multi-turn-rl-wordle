@@ -547,8 +547,9 @@ Set in `run_mtrl_training.py`. The ones that mattered:
 gpt-oss honors it as a request parameter. `REASONING_PROMPT_HINT`
 additionally prepends `Reasoning: low` to the system prompt, which is the
 Harmony convention gpt-oss expects; leave it off for models that don't use
-the Harmony format. Low
-effort cut sample tokens by about 80% during training. The adapter it produced
+the Harmony format. In our
+evaluation jobs, low effort used 62 to 76% fewer sample tokens per game than
+medium. The adapter it produced
 transfers to medium effort at serving time (60% → 80%, see
 [Results and Analysis](#results-and-analysis)), so training at low and serving
 at the model's default is a reasonable trade; training at medium is untested
@@ -734,8 +735,8 @@ Reasoning effort and temperature each show up twice in this pipeline: once
 when training samples rollouts, and again when you evaluate or serve the
 model. They don't have to match, and choosing them separately paid off here.
 
-- **Train cheap, serve at the default.** Training at low reasoning effort cut
-  sample tokens by about 80%. The resulting adapter scored 80% when served at
+- **Train cheap, serve at the default.** In our evaluation jobs, low reasoning
+  effort used 62 to 76% fewer sample tokens per game than medium. The resulting adapter scored 80% when served at
   medium effort, against 60% at low, and its gain over the base model held at
   both (+41 and +46 points).
 - **Serve near the training temperature.** Training sampled at temperature
