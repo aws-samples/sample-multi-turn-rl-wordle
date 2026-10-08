@@ -22,8 +22,7 @@ r = g.guess("BEACH")
 assert g.solved and "solved" in r
 assert g.final_reward() > 1.0, g.final_reward()
 
-# ── outcome ordering: solve > loss > never played always holds; speed ordering
-# is checked on these sample games only (shaping can reorder solves one guess apart)
+# ── outcome ordering on sample games: faster solve > slower solve > loss > never played
 def _play(answer, words):
     game = WordleGame(answer)
     for w in words:
@@ -38,6 +37,23 @@ never = WordleGame("CIGAR").final_reward()
 assert fast > mid > slow > 0 > lost > never, (fast, mid, slow, lost, never)
 assert lost < 0, f"a lost game must not pay positive reward: {lost}"
 assert never == main.NO_PLAY_REWARD, never
+
+# ── ordering holds for ALL games, not just samples: drive final_reward with
+# forced state at both shaping extremes and check every tier boundary ───────
+def _forced(n_guesses, solved, shaping_unit):
+    g = WordleGame("CIGAR")
+    g.guesses = ["SLATE"] * n_guesses
+    g.solved = solved
+    g.game_score = shaping_unit * 10 * REWARD_SCALE   # far past the clip
+    return g.final_reward()
+solve_lo = {n: _forced(n, True, -1) for n in range(1, 7)}
+solve_hi = {n: _forced(n, True, +1) for n in range(1, 7)}
+loss_lo, loss_hi = _forced(6, False, -1), _forced(6, False, +1)
+for n in range(1, 6):
+    assert solve_lo[n] > solve_hi[n + 1], (n, solve_lo[n], solve_hi[n + 1])
+assert min(solve_lo.values()) >= 1.0, "every solve must clear success_threshold 1.0"
+assert loss_hi < min(solve_lo.values()), (loss_hi, solve_lo)
+assert loss_hi < 0 and main.NO_PLAY_REWARD < loss_lo, (loss_lo, loss_hi)
 
 # shaping must still vary within a tier, or GRPO has no gradient
 a = _play("CIGAR", ["SLATE", "CAIRN", "CIGAR"])

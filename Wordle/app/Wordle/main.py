@@ -158,7 +158,8 @@ REWARD_SCALE = REWARD["solution_correct_guess"]
 # ── Outcome vs shaping ──────────────────────────────────────────────────────
 # The rollout reward is outcome + a small shaping term:
 #
-#   final = outcome + SHAPING_WEIGHT * clip(game_score / REWARD_SCALE)
+#   final = outcome + w * clip(game_score / REWARD_SCALE, -1, 1)
+#   w = SOLVE_SHAPING_WEIGHT for solved games, LOSS_SHAPING_WEIGHT otherwise
 #
 # Summing per-guess shaping straight into the reward (the original design,
 # inherited from wordle-lora-rl where each guess was scored as an independent
@@ -169,11 +170,23 @@ REWARD_SCALE = REWARD["solution_correct_guess"]
 #     because five turns of +15 base plus entropy and reduction bonuses dwarfed
 #     the -1/guess time penalty. The reward mildly favoured dawdling.
 # Making the outcome dominant fixes both while keeping shaping as a gradient.
-SOLVE_BASE_REWARD = 1.0       # any solve clears every non-solve
+# Ordering guaranteed by these constants (test_env.py checks the bounds):
+#   * Faster solve > slower solve: adjacent guess counts differ by
+#     SOLVE_SPEED_BONUS / 5 = 0.1 in outcome, and solve shaping can move a
+#     reward by at most +/-SOLVE_SHAPING_WEIGHT, a total swing of 0.08 < 0.1.
+#   * Every solve >= 1.01, so it clears success_threshold = 1.0 and pass@1
+#     counts every solve.
+#   * Every loss <= LOSS_REWARD + LOSS_SHAPING_WEIGHT = -0.35 < any solve.
+#   * Never played (-1.5) < every loss (>= -0.65).
+# Losses keep the larger shaping weight: they have no guess-count tiers to
+# overlap, and separating "lost playing well" from "lost playing badly" is
+# where shaping gives GRPO the most within-group variance.
+SOLVE_BASE_REWARD = 1.05      # worst solve (guess 6, worst shaping) = 1.01
 SOLVE_SPEED_BONUS = 0.5       # full for a first-guess solve, 0 on the last guess
 LOSS_REWARD = -0.5            # played it out, never solved: must be negative
 NO_PLAY_REWARD = -1.5         # never guessed: strictly the worst outcome
-SHAPING_WEIGHT = 0.15         # small enough that it cannot outrank the outcome
+SOLVE_SHAPING_WEIGHT = 0.04   # 2 * 0.04 < 0.1 per-guess gap, so speed always wins
+LOSS_SHAPING_WEIGHT = 0.15    # losses can't overlap solves (-0.35 max)
 SHAPING_CLIP = 1.0            # bound shaping so one wild game can't dominate
 
 # ── Reasoning budget ────────────────────────────────────────────────────────
@@ -464,11 +477,11 @@ class WordleGame:
     def final_reward(self) -> float:
         """Rollout reward: a dominant outcome term plus bounded shaping.
 
-        Guaranteed by construction: any solve > any loss > never played.
-        Within solves, each guess saved adds 0.1 to the outcome term, but
-        shaping (up to +/-0.15) can reorder two solves one guess apart.
-        Shaping can never make a loss look like a win, but it still varies between rollouts -- which is
-        what GRPO needs to compute a non-zero advantage.
+        Guaranteed by construction:
+          faster solve > slower solve > any loss > never played
+        Shaping moves a result only within its tier, but it still varies
+        between rollouts -- which is what GRPO needs to compute a non-zero
+        advantage.
         """
         if not self.guesses:
             # No guess ever executed. Worst outcome, and deliberately below any
@@ -479,14 +492,12 @@ class WordleGame:
         shaping = max(-SHAPING_CLIP, min(SHAPING_CLIP, shaping))
 
         if self.solved:
-            # 1.0 for solving on the final guess, up to 1.5 for a first-guess
-            # solve, so fewer guesses earn a larger outcome term.
+            # 1.05 for solving on the final guess, up to 1.55 for a first-guess
+            # solve; each guess saved adds 0.1.
             speed = (MAX_GUESSES - len(self.guesses)) / (MAX_GUESSES - 1)
-            outcome = SOLVE_BASE_REWARD + SOLVE_SPEED_BONUS * speed
-        else:
-            outcome = LOSS_REWARD
-
-        return outcome + SHAPING_WEIGHT * shaping
+            return (SOLVE_BASE_REWARD + SOLVE_SPEED_BONUS * speed
+                    + SOLVE_SHAPING_WEIGHT * shaping)
+        return LOSS_REWARD + LOSS_SHAPING_WEIGHT * shaping
 
 
 # ── Raw-text tool-call recovery ─────────────────────────────────────────────

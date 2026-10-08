@@ -470,22 +470,26 @@ depends only on how the game ended, and a small bounded **shaping** term that
 rewards good Wordle play within each outcome.
 
 ```
-reward = outcome + 0.15 * clip(shaping, -1, 1)
+reward = outcome + w * clip(shaping, -1, 1)    # w = 0.04 if solved, 0.15 otherwise
 ```
 
 ### 1. The outcome
 
 | Outcome | Value |
 |---|---:|
-| Solved on guess *n* | `1.0 + 0.5 * (6-n)/5` → 1.5 on guess 1, 1.0 on guess 6 |
+| Solved on guess *n* | `1.05 + 0.5 * (6-n)/5` → 1.55 on guess 1, 1.05 on guess 6 |
 | Played all six, unsolved | −0.5 |
 | Never made a valid guess | −1.5 |
 
-Every solve beats every loss, and never playing is strictly the worst result.
-Speed dominates across solves, though shaping (up to ±0.15) can reorder two
-solves one guess apart: a guess-3 solve with full shaping (+1.45) outscores a
-guess-2 solve with the minimum (+1.25). `test_env.py` asserts this ordering on
-sample games, so an edit cannot silently break it.
+A faster solve always beats a slower one, every solve beats every loss, and
+never playing is strictly the worst result. Adjacent guess counts are 0.1
+apart, and shaping can move a solve by at most ±0.04, so two solves can never
+swap order. Every solve also scores at least 1.01, so it clears the service's
+`success_threshold` of 1.0 and pass@1 counts it. Losses keep a larger shaping
+weight (±0.15) because they have no guess-count tiers to overlap, and the best
+possible loss (−0.35) is still far below the worst solve. `test_env.py` checks
+every tier boundary at both shaping extremes, so an edit cannot silently break
+the ordering.
 
 ### 2. Shaping: penalties for rule violations and mistakes (the "stick")
 
@@ -516,16 +520,15 @@ guesses that ignore them:
 
 ### 5. How the pieces combine
 
-The shaping total is divided by 150, clipped to ±1, and weighted by 0.15, so it
-can move a reward by at most 0.15 in either direction. That is enough to
-separate two games with the same outcome, but nowhere near the 1.5 gap between
-the slowest solve and a loss.
+The shaping total is divided by 150, clipped to ±1, and weighted by 0.04 for
+a solve or 0.15 for a loss. That is enough to separate two games with the same
+outcome, but never enough to cross into another tier.
 
-Take the FLARE rollout above. Solving on guess 4 gives an outcome of 1.2, and
+Take the FLARE rollout above. Solving on guess 4 gives an outcome of 1.25, and
 the shaping total of +91.9 (a strong opener, new letters on every turn, no
-violations) adds 0.092, for **+1.292**. Had the model wasted a guess on STALE
+violations) adds 0.025, for **+1.275**. Had the model wasted a guess on STALE
 before FLARE, which repeats two gray letters and misplaces three greens, the
-same word would have scored **+1.100**: the outcome drops to 1.1 for a
+same word would have scored **+1.150**: the outcome drops to 1.15 for a
 five-guess solve, and the violation penalties cancel the shaping entirely.
 Both games won, but one was played better, and GRPO needs exactly that kind
 of difference between rollouts to compute a gradient. The constants live at
