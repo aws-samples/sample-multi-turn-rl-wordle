@@ -1,0 +1,50 @@
+# Words removed by manual review (build_word_lists.py).
+#
+# Plain words are removed from the ANSWER list only; they stay valid guesses.
+# Lines of the form "sha256:<hex>" are slurs or words commonly used as slurs.
+# They are stored as SHA-256 hashes of the lowercase word so this repository
+# never spells them out, and they are removed from BOTH the answer and guess
+# lists, so they appear in no data file. To add one, run
+#     uv run python build_word_lists.py --hash WORD
+# and paste the printed line here. Lines starting with # are comments.
+
+# Slurs or words commonly used as slurs (hashed; removed from answers and guesses)
+sha256:d75a838dc758ba17f28bd8dbac605cb70c35465263d5733164521de2f7ef7926
+sha256:f9d0d9b18ae9033a5ea36df19bf279b059e887a9ae785db81117bceaecc95933
+sha256:63bd9333b1a0b11da8d0b206c4b86cd2a5be63fb5e7b59cc5ac7131f3a257489
+sha256:3f3b3597d9ee43869693701ed88d96daf7882b4351e2b1e9616ae153b41e7580
+sha256:8171c4ecae07283cff5da55c2d701e36f82e5e94ec3738c7709931c439583aa1
+sha256:9ae315a94e428a7ee3b5e48adae6541965d93b86acf10ffa1c45b93b6fe577b4
+sha256:0f28c4960d96647e77e7ab6d13b85bd16c7ca56f45df802cdc763a5e5c0c7863
+
+# Sexual or bodily
+booby
+booty
+bowel
+enema
+feces
+horny
+kinky
+semen
+sperm
+urine
+vomit
+
+# Historically loaded (SLAVE was also removed from the NYT list in 2022)
+lynch
+slave
+
+# Informal contractions and fragments, not dictionary headwords
+dunno
+gimme
+gonna
+kinda
+lemme
+multi
+sorta
+wanna
+
+# Inflected forms the inflection data missed
+blogs
+lamed
+maria

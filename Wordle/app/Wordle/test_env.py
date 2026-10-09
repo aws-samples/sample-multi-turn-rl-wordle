@@ -7,9 +7,11 @@ from main import WordleGame, score_guess, parse_task, REWARD, REWARD_SCALE, WORD
 import json
 
 # ── data assets loaded ──────────────────────────────────────────────────────
-assert len(main.ANSWER_WORDS) > 2000, len(main.ANSWER_WORDS)
+assert len(main.ANSWER_WORDS) > 1500, len(main.ANSWER_WORDS)
+assert set(main.ANSWER_WORDS) <= ALLOWED_WORDS, "every answer must be a legal guess"
 assert len(ALLOWED_WORDS) > 10000, len(ALLOWED_WORDS)
-assert len(WORD_ENTROPY) > 10000 and WORD_ENTROPY.get("SOARE", 0) > 5, "entropy data"
+assert set(WORD_ENTROPY) == ALLOWED_WORDS, "one entropy value per legal guess"
+assert WORD_ENTROPY.get("SLATE", 0) > 5, "entropy data"   # top opener for these lists
 
 # ── scoring incl. duplicates ────────────────────────────────────────────────
 assert score_guess("CRANE", "CRANE") == ["G"] * 5
@@ -31,8 +33,8 @@ def _play(answer, words):
 
 fast = _play("CIGAR", ["CIGAR"])                                  # turn 1
 mid = _play("CIGAR", ["SLATE", "CAIRN", "CIGAR"])                  # turn 3
-slow = _play("GODLY", ["SLATE", "CLING", "GLORY", "GLOOM", "GOWLY", "GODLY"])
-lost = _play("GODLY", ["SLATE", "CLING", "GLORY", "GLOOM", "GOWLY", "GOLLY"])
+slow = _play("GODLY", ["SLATE", "CLING", "GLORY", "GLOOM", "GOODY", "GODLY"])
+lost = _play("GODLY", ["SLATE", "CLING", "GLORY", "GLOOM", "GOODY", "GOLLY"])
 never = WordleGame("CIGAR").final_reward()
 assert fast > mid > slow > 0 > lost > never, (fast, mid, slow, lost, never)
 assert lost < 0, f"a lost game must not pay positive reward: {lost}"
@@ -84,7 +86,7 @@ assert "Invalid" in out and len(g5.guesses) == 0
 
 # ── entropy bonus makes a good opener beat a bad one ────────────────────────
 ga, gb = WordleGame("BEACH"), WordleGame("BEACH")
-ga.guess("SOARE")   # top-tier opener
+ga.guess("SLATE")   # top-tier opener
 gb.guess("FUZZY")   # poor opener
 assert ga.game_score > gb.game_score
 

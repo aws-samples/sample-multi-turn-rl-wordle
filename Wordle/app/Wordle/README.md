@@ -10,7 +10,7 @@ only what lives here.
 |---|---|
 | `main.py` | Everything the runtime needs: the `WordleGame` environment and reward, the Strands agent with its single `guess_word` tool, the RFT rollout handler, bearer-token handling, and raw-text tool-call recovery. |
 | `test_env.py` | Offline tests: Wordle scoring, clue tracking, reward ordering (`fast win > slow win > loss > never played`), and a round-trip of every dataset row through `parse_task()`. No AWS calls. |
-| `data/` | NYT answer list (2,309 words), NYT allowed-guess list (10,663), and precomputed per-word entropy used for the opening-guess bonus. From [wordle-lora-rl](https://github.com/charbull/wordle-lora-rl). |
+| `data/` | `answers.txt` (1,923 common words that can be the secret), `allowed_guesses.txt` (11,072 words accepted as guesses), and `word_entropy.json`, the per-guess entropy used for the opening-guess bonus. All three are generated from [SCOWL](http://wordlist.aspell.net/) by `build_word_lists.py` at the repository root; don't edit them by hand. |
 
 ## Entrypoint contract
 

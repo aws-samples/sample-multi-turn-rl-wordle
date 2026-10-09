@@ -1,16 +1,82 @@
-This project includes material from the following third-party project.
+This project includes material from the following third-party projects.
 
 ================================================================================
-wordle-lora-rl
-https://github.com/charbull/wordle-lora-rl
+1. SCOWL (Spell Checker Oriented Word Lists), version 2020.12.07
+   http://wordlist.aspell.net/
+================================================================================
+
+Used in:
+  - Wordle/app/Wordle/data/answers.txt
+  - Wordle/app/Wordle/data/allowed_guesses.txt
+  - Wordle/app/Wordle/data/word_entropy.json (computed from the two lists)
+  - training-data.jsonl, validation-data.jsonl (answers drawn from answers.txt)
+
+These files are output of build_word_lists.py, which selects five-letter words
+from the SCOWL english-words and american-words lists (size 35 and below for
+answers, size 80 and below for guesses) and filters them. SCOWL's size-80 list
+includes the UK Advanced Cryptics Dictionary (UKACD).
+
+The full SCOWL copyright and permission notice, including the notices of the
+upstream word lists SCOWL is built from, is reproduced verbatim in
+licenses/SCOWL-Copyright.txt. Its main notice:
+
+  Copyright 2000-2018 by Kevin Atkinson
+
+  Permission to use, copy, modify, distribute and sell these word
+  lists, the associated scripts, the output created from the scripts,
+  and its documentation for any purpose is hereby granted without fee,
+  provided that the above copyright notice appears in all copies and
+  that both that copyright notice and this permission notice appear in
+  supporting documentation. Kevin Atkinson makes no representations
+  about the suitability of this array for any purpose. It is provided
+  "as is" without express or implied warranty.
+
+UKACD notice (its full document is reproduced verbatim, as its license
+requires, in licenses/UKACD-readme.txt):
+
+  Copyright (c) J Ross Beresford 1993-2000. All Rights Reserved.
+
+  The following restriction is placed on the use of this
+  publication: if The UK Advanced Cryptics Dictionary is used
+  in a software package or redistributed in any form, the
+  copyright notice must be prominently displayed and the text
+  of this document must be included verbatim.
+
+  There are no other restrictions: I would like to see the
+  list distributed as widely as possible.
+
+================================================================================
+2. AGID (Automatically Generated Inflection Database), version 2016.01.19
+   http://wordlist.aspell.net/
+================================================================================
+
+Used by build_word_lists.py to remove plurals, past tenses, and other
+inflected forms from Wordle/app/Wordle/data/answers.txt. No AGID data is
+redistributed in this repository. Its full README, including the copyright
+notices of its sources (WordNet, ENABLE, UKACD, Moby), is reproduced verbatim
+in licenses/AGID-README.txt. Its main notice:
+
+  Copyright 2000-2014 by Kevin Atkinson
+
+  Permission to use, copy, modify, distribute and sell this database,
+  the associated scripts, the output created form the scripts and its
+  documentation for any purpose is hereby granted without fee,
+  provided that the above copyright notice appears in all copies and
+  that both that copyright notice and this permission notice appear in
+  supporting documentation. Kevin Atkinson makes no representations
+  about the suitability of this array for any purpose. It is provided
+  "as is" without express or implied warranty.
+
+================================================================================
+3. wordle-lora-rl
+   https://github.com/charbull/wordle-lora-rl
 ================================================================================
 
 Used in:
   - Wordle/app/Wordle/main.py: portions of the Wordle environment, clue
     tracking, and per-guess reward components, ported and modified
-  - Wordle/app/Wordle/data/nyt_answers_wordle_list.txt
-  - Wordle/app/Wordle/data/nyt_possible_wordle_list.txt
-  - Wordle/app/Wordle/data/word_entropy.json
+  - build_word_lists.py: the entropy definition (Shannon entropy of the
+    feedback-pattern distribution over the answer list), reimplemented
 
 MIT License
 
