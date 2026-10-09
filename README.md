@@ -7,8 +7,8 @@ Wordle using **SageMaker AI Multi-Turn Reinforcement Learning (MTRL)**. An
 agent hosted on Amazon Bedrock AgentCore plays the game, the policy model
 being trained makes the guesses, and the outcome of each game is the reward.
 Training updates a LoRA adapter with GRPO. After 100 training steps, the model
-solves **80%** of held-out words, up from 39% before training, which puts it
-level with Claude Haiku 4.5 and gpt-oss-120b on this task.
+solves **84%** of held-out words at its default reasoning effort, up from 61%
+before training, and **69%** at the low effort it was trained at, up from 15%.
 
 Everything here has been run end to end, and every number below comes from a
 real training or evaluation run. The goals are to show the complete MTRL
@@ -65,13 +65,13 @@ cannot credit the opening guess that made a turn-3 solve possible. MTRL lets
 the model play the whole game, scores the result, and learns from the spread
 of results across several attempts at the same word.
 
-Wordle is also a teaching vehicle, not a business case. It can be solved
+Wordle is also a teaching example, not a business case. It can be solved
 algorithmically: an information-theoretic solver
-([3Blue1Brown](https://www.youtube.com/watch?v=v68zYyaEmEA)) averages 3.42
-guesses, and a frontier model solves 95% of games without any training. The
-real value of MTRL is making a small, cost-effective model good at a
-proprietary multi-step task that no frontier model has seen. Everything here
-carries over to that setting unchanged.
+([3Blue1Brown](https://www.youtube.com/watch?v=v68zYyaEmEA)) averages about
+3.4 guesses, and frontier models already play it well. In practice, you would
+use MTRL to make a small, low-cost model good at a multi-step task specific to
+your business, such as an internal workflow that public models were never
+trained on. The same pipeline applies to that setting.
 
 ### An example rollout
 
@@ -79,66 +79,68 @@ The model plays through a single tool, `guess_word`. After each guess the
 environment returns per-letter feedback and a plain-English summary of
 everything known so far. Below is one complete rollout of the **trained
 model**, taken from the AgentCore runtime traces of an evaluation job (medium
-reasoning effort, temperature 1.0). The secret word was FLARE. The model's
-reasoning is shown as it was generated, lightly trimmed on the last turn.
+reasoning effort, temperature 1.0). The secret word was PASTE. The model's
+reasoning is quoted as generated, trimmed where marked `[...]`.
 
 ```
-[model] Reasoning: I must send the first guess immediately. The prompt instructs
-        to choose a strong opener. Common words with distinct letters: "crane",
-        "slate", "arise", "audio"? "slate" is good. I'll guess "slate".
-        Tool call: guess_word(guess="slate")
+[model] Reasoning: [...] The instruction says open with word that maximizes
+        information (many common, distinct letters). "CRANE" has 5 distinct
+        letters: C,R,A,N,E. [...] We'll guess "CRANE".
+        Tool call: guess_word(guess="CRANE")
 
-[tool]  Guess 1/6: SLATE -> S=gray, L=green, A=green, T=gray, E=green
+[tool]  Guess 1/6: CRANE -> C=gray, R=gray, A=yellow, N=gray, E=green
         Current Knowledge:
-        - Correct Position (Green): _ L A _ E
-        - In Word, Wrong Position (Yellow): None
-        - Not in Word (Gray): S, T
-        - Words Already Guessed: SLATE
+        - Correct Position (Green): _ _ _ _ E
+        - In Word, Wrong Position (Yellow): 'A' (at least 1)
+        - Not in Word (Gray): C, N, R
+        - Words Already Guessed: CRANE
         - Guesses Remaining: 5
 
-[model] Reasoning: We have L A E at positions 2,3,5. So pattern _ L A _ E.
-        Unknown letters for positions 1 and 4, not S or T. Use a word with new
-        letters. "blaze"? B L A Z E fits: B in pos1, Z pos4. Both new letters.
-        Tool call: guess_word(guess="blaze")
+[model] Reasoning: We have word ends with E. A present somewhere else [...]
+        Not C, N, R. [...] "ALIVE": ends with E, includes A. Letters not
+        C,N,R. So guess "ALIVE".
+        Tool call:
+ guess_word(guess="ALIVE")
 
-[tool]  Guess 2/6: BLAZE -> B=gray, L=green, A=green, Z=gray, E=green
+[tool]  Guess 2/6: ALIVE -> A=yellow, L=gray, I=gray, V=gray, E=green
         Current Knowledge:
-        - Correct Position (Green): _ L A _ E
-        - In Word, Wrong Position (Yellow): None
-        - Not in Word (Gray): B, S, T, Z
-        - Words Already Guessed: SLATE, BLAZE
+        - Correct Position (Green): _ _ _ _ E
+        - In Word, Wrong Position (Yellow): 'A' (at least 1)
+        - Not in Word (Gray): C, I, L, N, R, V
+        - Words Already Guessed: CRANE, ALIVE
         - Guesses Remaining: 4
 
-[model] Reasoning: We know pattern _LA_E, letters outside: B,S,T,Z. We need new
-        letters for positions 1 and 4. "flame" fits: F L A M E. That's 4 = M.
-        F not in gray list. Good guess.
-        Tool call: guess_word(guess="flame")
+[model] Reasoning: [...] in first guess A was at position 3: A=yellow. That
+        means A in word but not position 3. [...] In second guess ALIVE, A
+        was first letter, but yellow again: that means A in word but not
+        position 1. So positions not 1 or 3 for A. Positions left: 2,4 for A.
+        [...] We might guess "HASTE"? [...] contains A at pos
+ition 2; good.
+        Tool call: guess_word(guess="HASTE")
 
-[tool]  Guess 3/6: FLAME -> F=green, L=green, A=green, M=gray, E=green
+[tool]  Guess 3/6: HASTE -> H=gray, A=green, S=green, T=green, E=green
         Current Knowledge:
-        - Correct Position (Green): F L A _ E
+        - Correct Position (Green): _ A S T E
         - In Word, Wrong Position (Yellow): None
-        - Not in Word (Gray): B, M, S, T, Z
-        - Words Already Guessed: SLATE, BLAZE, FLAME
+        - Not in Word (Gray): C, H, I, L, N, R, V
+        - Words Already Guessed: CRANE, ALIVE, HASTE
         - Guesses Remaining: 3
 
-[model] Reasoning: We know pattern "FLA_E". Fourth letter unknown, M is not in
-        the word. So we need a word F L A ? E. [...] "flare"
-        Tool call: guess_word(guess="flare")
+[model] Reasoning: We have the word: _ASTE. [...] First letter unknown, not
+        C H I L N R V. [...] "PASTE" is a word. PASTE fits. Also "WASTE" also
+        fits [...] "BASTE" [...] Choose "PASTE" maybe.
+        Tool call: guess_word(guess="PASTE")
 
-[tool]  Guess 4/6: FLARE — all green. Correct, you solved it!
-
-[model] Word is FLARE.
+[tool]  Guess 4/6: PASTE — all green. Correct, you solved it!
 ```
 
 A few things to notice. The model opens with a strong word, keeps every green
-letter in place, never reuses a gray letter, and spends its unknown positions
-on letters it has not tried. It also reasons briefly on the early turns and at
-length only on the last one, when the candidate set is small. None of this
+letter in place, never reuses a gray letter, and uses each yellow to rule out
+positions, as it does when it places the A on its third guess. None of this
 was in the training data. The dataset contains only secret words, and the
 model learned the strategy from the reward.
 
-When the game ends, the agent returns one number, the reward: **+1.292** for
+When the game ends, the agent returns one number, the reward: **+1.279** for
 this game. How that number is built is covered in
 [The Reinforcement Learning Strategy](#the-reinforcement-learning-strategy).
 
@@ -252,6 +254,7 @@ Your caller needs `iam:PassRole` for `job.sagemaker.amazonaws.com` plus the
 │       ├── test_env.py             offline tests, no AWS needed
 │       └── data/                   SCOWL word lists + entropy: reward reference data, not training data
 ├── docs/architecture.{html,png}    the diagram above (SVG source + render)
+├── docs/plots/make_plots.py        regenerates the result charts from MLflow
 ├── build_word_lists.py             builds data/ from SCOWL + AGID (pinned, checksummed)
 ├── excluded_answers.txt            manual review: words never used as answers
 ├── licenses/                       verbatim SCOWL, AGID, and UKACD notices
@@ -392,7 +395,8 @@ uv run python run_mtrl_training.py \
 instead to reuse an existing S3 object. `MlflowConfig` is **required** by
 `CreateJob`, so create an MLflow app first
 (`aws sagemaker create-mlflow-app ...`) if you don't have one. The 100-step
-run in this repository took about 4 hours 18 minutes.
+run in this repository took 12 hours 40 minutes and cost about $339 in
+training tokens.
 
 Reattach to a running job at any time:
 
@@ -417,7 +421,7 @@ uv run python run_mtrl_eval.py --runs base:1.0 trained:1.0 \
   --mlflow-app-arn arn:aws:sagemaker:<REGION>:<ACCOUNT>:mlflow-app/<APP_ID>
 ```
 
-Each run is 100 rollouts and takes about seven minutes; metrics land in MLflow
+Each run is 128 rollouts and takes four to seven minutes; metrics land in MLflow
 under `eval/reward/*`. Only one evaluation job runs at a time per account, so
 the script runs `--runs` sequentially. Reasoning effort is not a job
 parameter: change `REASONING_EFFORT` in `agentcore.json`, `agentcore deploy`,
@@ -531,7 +535,7 @@ guesses that ignore them:
 ### 3. Shaping: bonuses for strategic play (the "carrot")
 
 - **Valid guess (`valid_guess_base`, +15):** for each valid guess that doesn't solve the game.
-- **Opening word (`information_gain_bonus_coeff`, 7.5 × entropy):** on turn 1 only, a bonus proportional to the word's pre-computed information gain, so strong openers like SOARE or SLATE score well.
+- **Opening word (`information_gain_bonus_coeff`, 7.5 × entropy):** on turn 1 only, a bonus proportional to the word's pre-computed information gain, so strong openers like SLATE or TRACE score well.
 - **New letters (`new_letter_bonus`, +2 each):** from turn 2 on, for each letter not yet tried.
 - **Possibility reduction (`possibility_reduction_bonus`, up to +15):** from turn 2 on, proportional to the fraction of remaining candidate answers the guess eliminates.
 
@@ -546,12 +550,12 @@ The shaping total is divided by 150, clipped to ±1, and weighted by 0.04 for
 a solve or 0.15 for a loss. That is enough to separate two games with the same
 outcome, but never enough to cross into another tier.
 
-Take the FLARE rollout above. Solving on guess 4 gives an outcome of 1.25, and
-the shaping total of +91.9 (a strong opener, new letters on every turn, no
-violations) adds 0.025, for **+1.275**. Had the model wasted a guess on STALE
-before FLARE, which repeats two gray letters and misplaces three greens, the
-same word would have scored **+1.150**: the outcome drops to 1.15 for a
-five-guess solve, and the violation penalties cancel the shaping entirely.
+Take the PASTE rollout above. Solving on guess 4 gives an outcome of 1.25, and
+the shaping total of +108.1 (a strong opener, new letters on every turn, no
+violations) adds 0.029, for **+1.279**. Had the model wasted a guess on CASTE
+before PASTE, which reuses the gray C, the same word would have scored
+**+1.174**: the outcome drops to 1.15 for a five-guess solve, and the
+violation penalty lowers the shaping.
 Both games won, but one was played better, and GRPO needs exactly that kind
 of difference between rollouts to compute a gradient. The constants live at
 the top of `Wordle/app/Wordle/main.py`.
@@ -578,41 +582,41 @@ values that differ from its defaults, so `DescribeJob` lists just
 gpt-oss honors it as a request parameter. `REASONING_PROMPT_HINT`
 additionally prepends `Reasoning: low` to the system prompt, which is the
 Harmony convention gpt-oss expects; leave it off for models that don't use
-the Harmony format. In our
-evaluation jobs, low effort used 62 to 76% fewer sample tokens per game than
-medium. The adapter it produced
-transfers to medium effort at serving time (60% → 80%, see
+the Harmony format. In our evaluation jobs at temperature 1.0, low effort used
+63 to 83% fewer sample tokens per game than medium. The adapter it produced
+transfers to medium effort at serving time (69% → 84%, see
 [Results and Analysis](#results-and-analysis)), so training at low and serving
 at the model's default is a reasonable trade; training at medium is untested
-here and would cost roughly 3x the sample tokens (mean response 804 vs 280
-tokens in the evaluation jobs).
+here and would cost roughly 2.7 times the sample tokens (3,797 vs 1,412 per
+game for the trained model in the evaluation jobs).
 
 ---
 
 ## Results and Analysis
 
-Training ran for 100 steps on 600 words and was scored on 100 held-out words
+Training ran for 100 steps on 640 words and was scored on 128 held-out words
 the model never saw in training.
 
 ### Training performance
 
 The training service logs metrics to MLflow as it trains. Two tell the story:
 
-![Left: mean reward per game rising from -0.18 to about 0.6 for training rollouts and from -0.32 to about 0.1 to 0.2 for validation. Right: validation solve rate rising from 7% at step 0 to a peak of 39% at step 60, ending at 34% at step 100.](docs/plots/training_curves.png)
+![Left: mean reward per game rising from -0.23 to about +0.57 for training rollouts within 15 steps, and from -0.40 to between +0.08 and +0.33 for validation. Right: validation solve rate rising from 2% at step 0 to 31% at step 10, then between 35% and 48% for the rest of the run, ending at 37%.](docs/plots/training_curves.png)
 
 - **Mean reward per game (left).** Training rollouts (`rollout/reward/mean`)
-  climb from −0.18 to about +0.6 within 30 steps and hold there. Validation
-  reward on held-out words (`val/reward/mean`) rises too, from −0.32 to
-  between +0.1 and +0.2.
+  climb from −0.23 to about +0.57 within 15 steps and hold there for the rest
+  of the run. Validation reward on held-out words (`val/reward/mean`) rises
+  from −0.40 to between +0.08 and +0.33.
 - **Validation solve rate (right).** The share of held-out words solved
-  (`val/reward/pass_at_1`) goes from 7% to a peak of 39% at step 60, then
-  settles at 34%.
+  (`val/reward/pass_at_1`) goes from 2% to 31% in the first 10 steps, then
+  moves between 35% and 48% and ends at 37%. With 128 words, one point is
+  about 1.3 words, so the swings after step 10 are mostly noise.
 
 The two sets of curves are sampled differently. Training rollouts use
 temperature 1.0; the service scores validation at **temperature 0**, with the
 effort the agent was deployed with (`low` here), and neither setting is
 configurable. The validation curve is a faithful signal that training works
-and shows the plateau around step 60, but it understates the adapter by a wide
+and shows where it levels off, but it understates the adapter by a wide
 margin, as the next section shows.
 
 ### Evaluation: trained vs. base model
@@ -623,57 +627,39 @@ effort** and **sampling temperature**. In each bar, the gray segment is the
 base model and the blue segment is the gain from training, so the top of the
 bar is the trained model.
 
-![Stacked bars for four settings. Solve rate, base to trained: low effort temp 0, 7% to 34%; medium effort temp 0, 12% to 33%; low effort temp 1.0, 14% to 60%; medium effort temp 1.0, 39% to 80%. Mean reward, base to trained: -0.32 to +0.11; -0.22 to +0.15; -0.21 to +0.55; +0.24 to +0.93.](docs/plots/eval_trained_vs_base.png)
+![Stacked bars for four settings. Solve rate, base to trained: low effort temp 0, 2% to 37%; medium effort temp 0, 16% to 30%; low effort temp 1.0, 15% to 69%; medium effort temp 1.0, 61% to 84%. Mean reward, base to trained: -0.40 to +0.14; -0.15 to +0.11; -0.19 to +0.69; +0.60 to +0.99.](docs/plots/eval_trained_vs_base.png)
 
 The low-effort, temperature-0 pair is the training job's own validation at
 steps 0 and 100. The trained model at medium effort and temperature 1.0 is the
-average of two evaluation runs.
-
-### Comparison with frontier models
-
-Frontier models run zero-shot through the **identical** environment, prompt,
-tool, and reward, each at its default reasoning setting:
-
-| Model | Parameters | Solve rate | Mean reward | Trained on task? | Reasoning / decoding |
-|---|---:|---:|---:|:---:|---|
-| Optimal solver (information-theoretic) | — | 100% | +1.354 | — | — |
-| Claude Opus 5 | undisclosed | 95% | +1.226 | no | adaptive thinking, high (default) |
-| Claude Haiku 4.5 | undisclosed | 82% | +0.950 | no | thinking off (default) |
-| gpt-oss-120b | 117B (5.1B active) | 81% | +0.981 | no | medium effort (default) |
-| **gpt-oss-20b, after MTRL** | 21B (3.6B active) | **80%** | **+0.930** | **yes** | medium effort (default), temp 1.0 |
-| DeepSeek v3.2 | 671B (37B active) | 58% | +0.537 | no | model default |
-| **gpt-oss-20b, base** | 21B (3.6B active) | **39%** | **+0.237** | no | medium effort (default), temp 1.0 |
-| Qwen3-32B | 32B | 15% | −0.282 | no | model default |
-
-The two gpt-oss-20b rows come from `run_mtrl_eval.py` at the model's default
-reasoning effort and the training temperature; the trained row averages two
-evaluation runs. The other rows come from `eval_frontier.py` against Bedrock at
-each model's defaults.
+average of two evaluation runs (80% and 88%); the base model at that setting
+ran once. All seven evaluation jobs together cost about $1.20 in tokens.
 
 ### Analysis and key findings
 
-1. **Training more than doubled the solve rate.** At default settings the
-   model went from 39% to 80%, level with Claude Haiku 4.5 and with its own
-   117B sibling, gpt-oss-120b, at a mean reward within 0.02 of Haiku's.
-2. **Greedy decoding hides the gains.** At temperature 0 the model tends to
-   stop after two or three calls without finishing the game, at either effort,
-   so both base and trained sit near the bottom of their range.
-3. **Reasoning effort matters once sampling is on.** Medium effort adds 20 to
-   25 points over low at temperature 1.0.
-4. **The adapter transfers across settings.** It adds 20 to 46 points in every
-   cell, including medium effort, which it was never trained at.
+1. **Training lifts the solve rate in every setting.** At the model's default
+   reasoning effort (medium) and temperature 1.0, it goes from 61% to 84%. At
+   the low effort it was trained at, it goes from 15% to 69%.
+2. **The base model is already decent at serving settings.** Medium effort
+   lets the base model reason its way to 61%, so there is less headroom there
+   than at low effort, where training adds 54 points.
+3. **Greedy decoding hides the gains.** At temperature 0 the trained model
+   solves 30 to 37% of words at either effort, against 69 to 84% at
+   temperature 1.0. Greedy decoding often ends the game without a solve.
+4. **The adapter transfers across settings.** It adds 14 to 54 points in
+   every cell, including medium effort, which it was never trained at.
 5. **Evaluate at the settings you will serve at.** Temperature 1.0 is also what
    training sampled at, so the trained model is in-distribution there. Had we
-   trusted only the training curve, we would have reported 34%.
+   trusted only the training curve, we would have reported 37%.
 
-**Next steps to improve performance:** validation solve rate peaked around
-step 60 and drifted down, so more steps alone won't help. The most promising
-untried change is a curriculum that seeds games with 0–4 prior guesses, so the
-policy learns deduction without first surviving the opening; wordle-lora-rl
-reports this as its single biggest gain. Raising `group_size` is the other
-obvious lever. Every training row has the identical prompt text and only the
-hidden answer varies, so this dataset exercises "learn from interaction," not
-"learn from your data."
+**Next steps to improve performance:** training reward stopped rising after
+about step 15, and validation stopped improving after about step 30, so more
+steps alone won't help. The most promising untried change is a curriculum that
+seeds games with 0–4 prior guesses, so the policy learns deduction without
+first surviving the opening; wordle-lora-rl reports this as its single
+biggest gain. Raising `group_size` above the default of 8 is the other obvious
+lever. Every training row has the identical prompt text and only the hidden
+answer varies, so this dataset exercises "learn from interaction," not "learn
+from your data."
 
 ---
 
@@ -704,7 +690,7 @@ Most of the early failures were integration bugs, not RL problems.
   every model call failed authentication. Returning `{"status": "error"}` fails
   it too (`The agent signaled that the trajectory failed`). A game where the
   model is sampled but never makes a valid guess is fine: it scores −1.5, and
-  the 100-step run had 15. The agent still retries a zero-guess rollout once
+  the 100-step run had 51 among about 105,000 rollouts. The agent still retries a zero-guess rollout once
   with a fresh conversation, bounded by a wall-clock budget so it can't outrun
   the reward-reporting window.
 
@@ -755,8 +741,8 @@ that ended in exceptions.
 
 The training job scores validation at temperature 0 with the deployed
 reasoning effort, and you cannot change either. For this task greedy decoding
-makes the model quit early, so the curve topped out at 34% while the same
-model package scores 80% at medium effort and temperature 1.0. Run
+makes the model quit early, so the curve ended at 37% while the same model
+package scores 84% at medium effort and temperature 1.0. Run
 `run_mtrl_eval.py` at your serving settings before drawing conclusions, and use
 the curve for what it is good at: showing whether training is still improving.
 
@@ -767,16 +753,16 @@ when training samples rollouts, and again when you evaluate or serve the
 model. They don't have to match, and choosing them separately paid off here.
 
 - **Train cheap, serve at the default.** In our evaluation jobs, low reasoning
-  effort used 62 to 76% fewer sample tokens per game than medium. The resulting adapter scored 80% when served at
-  medium effort, against 60% at low, and its gain over the base model held at
-  both (+41 and +46 points).
+  effort used 63 to 83% fewer sample tokens per game than medium. The
+  resulting adapter scored 84% when served at medium effort, against 69% at
+  low, and its gain over the base model held at both (+23 and +54 points).
 - **Serve near the training temperature.** Training sampled at temperature
-  1.0. At 1.0 the trained model solved 60 to 80% of words; at temperature 0 it
-  fell to 33 to 34%, at either effort.
+  1.0. At 1.0 the trained model solved 69 to 84% of words; at temperature 0 it
+  fell to 30 to 37%, at either effort.
 - **Know what you haven't tested.** This project changed these settings at
   evaluation time only. Whether training at medium effort or a different
   temperature would raise the ceiling is untested, and medium effort would
-  cost roughly three times the sample tokens.
+  cost roughly 2.7 times the sample tokens.
 
 ---
 
@@ -794,10 +780,12 @@ model. They don't have to match, and choosing them separately paid off here.
 
 ## Attribution
 
-The environment design, reward constants, clue-state tracking, and word lists
-are ported from [charbull/wordle-lora-rl](https://github.com/charbull/wordle-lora-rl)
+The environment design, reward constants, and clue-state tracking are ported
+from [charbull/wordle-lora-rl](https://github.com/charbull/wordle-lora-rl)
 (its README declares the MIT license), adapted from tag-parsing GRPO to a
-tool-calling agent on AgentCore. The optimal-play statistics (3.42 mean
+tool-calling agent on AgentCore. The word lists are built from
+[SCOWL](http://wordlist.aspell.net/) by `build_word_lists.py`.
+ The optimal-play statistics (3.42 mean
 guesses) follow the information-theoretic approach popularized by
 [3Blue1Brown](https://www.youtube.com/watch?v=v68zYyaEmEA).
 
