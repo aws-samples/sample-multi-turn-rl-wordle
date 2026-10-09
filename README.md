@@ -351,19 +351,29 @@ model. Use the CLI rather than hand-building a code package: the runtime runs
 Linux ARM64, and the agent's compiled dependencies (numpy, pandas, pyarrow,
 through MLflow) must be resolved for that platform.
 
-Smoke-test with an RFT-shaped payload. A fake `jobArn` is expected to 400,
-which proves the whole chain works: payload parsing, bearer-token auth, and
-error reporting.
+Smoke-test with an RFT-shaped payload. [`payload.json`](Wordle/payload.json)
+holds one task row in the `prompt` field and a fake `jobArn` in `metadata`.
+Put your own account ID into that fake ARN first: the service rejects a job
+ARN from another account with a 403 before it checks whether the job exists,
+and a 403 is indistinguishable from a broken IAM setup. From `Wordle/`:
 
 ```bash
+ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+sed "s/111122223333/$ACCOUNT/" payload.json > /tmp/payload.json
+
 aws bedrock-agentcore invoke-agent-runtime \
   --agent-runtime-arn <RUNTIME_ARN> \
   --runtime-session-id smoke-test-$(date +%s)000000000000000 \
-  --payload fileb://payload.json /dev/stdout
+  --payload fileb:///tmp/payload.json /dev/stdout
 ```
 
-Run this from `Wordle/`. [`payload.json`](Wordle/payload.json) holds one task
-row in the `prompt` field and a fake `jobArn` in `metadata`.
+The command prints `{"reward": -1.5}`: the agent never reached the policy
+model, so it reported the no-play reward. The proof is in the runtime's
+CloudWatch logs: the agent parses the prompt, authenticates to the Job Runtime
+endpoint, and gets a 400 reading "Could not find job". That confirms payload
+parsing, bearer-token auth, and error reporting all work. A 403 "not
+authorized to access this resource" means the job ARN still names another
+account; a 30-second timeout means the HTTP server isn't starting.
 
 ### 4. Launch training
 
