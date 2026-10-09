@@ -30,7 +30,7 @@ sperm
 urine
 vomit
 
-# Historically loaded (SLAVE was also removed from the NYT list in 2022)
+# Historically loaded
 lynch
 slave
 
