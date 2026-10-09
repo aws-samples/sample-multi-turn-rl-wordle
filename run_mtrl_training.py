@@ -14,8 +14,9 @@ Prereqs:
   3. IAM:
      - The AgentCore execution role needs the AmazonSageMakerJobRuntimeAccess
        managed policy (added in cdk-stack.ts; redeploy to apply).
-     - The training job role (--role-arn) must trust sagemaker.amazonaws.com and
-       allow bedrock-agentcore:GetAgentRuntime + InvokeAgentRuntime on
+     - The training job role (--role-arn) must trust job.sagemaker.amazonaws.com
+       (not sagemaker.amazonaws.com) with both sts:AssumeRole and
+       sts:TagSession, and allow bedrock-agentcore:GetAgentRuntime + InvokeAgentRuntime on
        runtime/Wordle_Wordle-* (wildcard suffix survives redeploys), S3
        read/write on the dataset/output paths, and sagemaker-mlflow:* on the
        MLflow app if used.
