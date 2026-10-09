@@ -250,14 +250,17 @@ Your caller needs `iam:PassRole` for `job.sagemaker.amazonaws.com` plus the
 │   └── app/Wordle/
 │       ├── main.py                 agent, environment, reward, RFT handler
 │       ├── test_env.py             offline tests, no AWS needed
-│       └── data/                   NYT word lists + entropy: reward reference data, not training data
+│       └── data/                   SCOWL word lists + entropy: reward reference data, not training data
 ├── docs/architecture.{html,png}    the diagram above (SVG source + render)
+├── build_word_lists.py             builds data/ from SCOWL + AGID (pinned, checksummed)
+├── excluded_answers.txt            manual review: words never used as answers
+├── licenses/                       verbatim SCOWL, AGID, and UKACD notices
 ├── make_dataset.py                 builds training/validation JSONL
 ├── run_mtrl_training.py            launches / attaches to the MTRL job
 ├── run_mtrl_eval.py                SageMaker evaluation jobs: base vs trained at chosen temperature
 ├── eval_frontier.py                zero-shot baseline for any Bedrock model
-├── training-data.jsonl             600 unique secret words
-└── validation-data.jsonl           100 unique, disjoint from training
+├── training-data.jsonl             640 unique secret words (5 batches of 128)
+└── validation-data.jsonl           128 unique, disjoint from training
 ```
 
 ---
@@ -276,17 +279,27 @@ uv run python test_env.py
 
 ### 2. Build the dataset
 
+The word lists in `Wordle/app/Wordle/data/` are checked in, so this step is
+optional. To rebuild them from SCOWL and AGID (downloaded once, checksum
+verified):
+
 ```bash
-uv run python make_dataset.py      # 600 train / 100 val, all unique, seed 42
+uv run python build_word_lists.py
 ```
 
-This writes `training-data.jsonl` (600 rows) and `validation-data.jsonl` (100
+Then draw the training and validation words:
+
+```bash
+uv run python make_dataset.py      # 640 train / 128 val, all unique, seed 42
+```
+
+This writes `training-data.jsonl` (640 rows) and `validation-data.jsonl` (128
 rows, no overlap with training). Here are the first three training rows:
 
 ```jsonl
-{"prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"carat\", \"id\": \"wordle_train_0000\"}"}
-{"prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"valet\", \"id\": \"wordle_train_0001\"}"}
-{"prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"botch\", \"id\": \"wordle_train_0002\"}"}
+{"prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"riser\", \"id\": \"wordle_train_0000\"}"}
+{"prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"swoon\", \"id\": \"wordle_train_0001\"}"}
+{"prompt": "{\"prompt\": \"Guess the 5-letter word\", \"answer\": \"dirty\", \"id\": \"wordle_train_0002\"}"}
 ```
 
 Each row has one column, `prompt`, and its value is a string. The MTRL
@@ -297,7 +310,7 @@ into a small JSON object, which `parse_task()` in `main.py` unpacks:
 ```json
 {
   "prompt": "Guess the 5-letter word",
-  "answer": "carat",
+  "answer": "riser",
   "id": "wordle_train_0000"
 }
 ```
@@ -362,8 +375,7 @@ uv run python run_mtrl_training.py \
   --s3-prefix s3://<BUCKET>/wordle-mtrl \
   --s3-output-path s3://<BUCKET>/wordle-mtrl/output/ \
   --val-dataset s3://<BUCKET>/wordle-mtrl/validation/validation-data.jsonl \
-  --mlflow-app-arn arn:aws:sagemaker:<REGION>:<ACCOUNT>:mlflow-app/<APP_ID> \
-  --max-steps 100 --max-epochs 6
+  --mlflow-app-arn arn:aws:sagemaker:<REGION>:<ACCOUNT>:mlflow-app/<APP_ID>
 ```
 
 `--s3-prefix` uploads `training-data.jsonl` for you; pass `--train-dataset`
@@ -536,15 +548,21 @@ the top of `Wordle/app/Wordle/main.py`.
 
 ### Hyperparameters
 
-Set in `run_mtrl_training.py`. The ones that mattered:
+Set in `run_mtrl_training.py`. Every training hyperparameter is the
+gpt-oss-20b default except these three:
 
-| Parameter | Value | Why |
-|---|---|---|
-| `learning_rate` | **1e-5** | At 4e-5, Nova's structured tool calls collapsed into plain text by step 15, and gpt-oss began the same drift. |
-| `sampling_max_tokens` | 8192 | The service cap. 4096 truncated gpt-oss mid-reasoning before its first tool call. |
-| `temperature` | 1.0 | 1.2 was tried to diversify openers; it wasn't needed and hotter sampling helps a policy wander off its tool-call template. |
-| `group_size` | 4 | GRPO group. Reward stdev within groups was reported as 0 at points, so 8–16 is the next thing to try. |
-| `global_batch_size` | 32 | 600 prompts → 19 steps/epoch, so 100 steps needs `max_epochs >= 6`. |
+| Parameter | Value | Default | Why |
+|---|---|---|---|
+| `sampling_max_tokens` | 8192 | 4096 | The service cap. At 4096, gpt-oss often ran out of tokens while reasoning, before its first tool call. |
+| `max_epochs` | 20 | 1 | 640 prompts at the default batch of 128 is 5 steps per epoch, so 20 epochs reach 100 steps. |
+| `max_steps` | 100 | 100 | Same as the default; set explicitly so the two limits agree. |
+
+The defaults that matter most here are `global_batch_size` 128 and
+`group_size` 8 (1,024 rollouts per step), `learning_rate` 1e-5,
+`temperature` 1.0, and `rollout_max_concurrency` 96. Run
+`trainer.hyperparameters.get_info()` for the full list. The SDK sends only
+values that differ from its defaults, so `DescribeJob` lists just
+`sampling_max_tokens` and `max_epochs` under `HyperParameters`.
 
 `REASONING_EFFORT=low` is set as a runtime env var in `agentcore.json`, and
 gpt-oss honors it as a request parameter. `REASONING_PROMPT_HINT`
@@ -777,6 +795,8 @@ guesses) follow the information-theoretic approach popularized by
 
 MIT-0 (MIT No Attribution). See [LICENSE](LICENSE).
 
-Portions of the Wordle environment, reward, and word lists come from
+The word lists are built from [SCOWL](http://wordlist.aspell.net/) and
+filtered with AGID, both by Kevin Atkinson under permissive licenses. Portions
+of the Wordle environment and reward come from
 [wordle-lora-rl](https://github.com/charbull/wordle-lora-rl) under the MIT
-License. See [THIRD-PARTY-LICENSES](THIRD-PARTY-LICENSES).
+License. See [THIRD-PARTY-LICENSES](THIRD-PARTY-LICENSES) and `licenses/`.

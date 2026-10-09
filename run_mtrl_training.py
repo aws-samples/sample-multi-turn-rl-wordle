@@ -39,47 +39,19 @@ from sagemaker.train.multi_turn_rl_trainer import MultiTurnRLTrainer  # noqa: E4
 DEFAULT_MODEL = "openai-reasoning-gpt-oss-20b"
 LOCAL_DATASET = os.path.join(os.path.dirname(__file__), "training-data.jsonl")
 
-# Values validated on a completed 100-step gpt-oss run. Names are GA
-# hyperparameter names; each is applied only if present on this SDK version.
+# Only three overrides; every other hyperparameter is the gpt-oss-20b default
+# (print trainer.hyperparameters.get_info() to see them). The SDK sends only
+# values that differ from its defaults, so DescribeJob's JobConfigDocument will
+# list just sampling_max_tokens and max_epochs -- max_steps 100 is the default.
 HYPERPARAMETERS = {
-    "global_batch_size": 32,        # GA choices {32, 64, 128}
-    "group_size": 4,                # GRPO group size
-    "advantage_method": "group_based",
-    "loss_fn": "ppo",
-    "clip_low_threshold": 0.8,
-    "clip_high_threshold": 1.2,
-    # 1.0 matches the completed GPT-OSS run. Raising it to 1.2 was a mistake:
-    # it targeted opener diversity that did not need fixing (reward stdev was
-    # already 0.60) and hotter sampling helps a policy wander off the base
-    # model's tool-call template. Validation is forced to 0 by the service.
-    "temperature": 1.0,
-    "sampling_top_p": 1.0,
-    # 8192 = GA cap. 4096 truncated GPT-OSS-20B mid-turn ("stopped generating
-    # due to maximum token limit") because it reasons at length before each
-    # tool call, so don't lower this without checking rollout token metrics.
+    # 8192 = service cap (default 4096). At 4096, GPT-OSS-20B often ran out of
+    # tokens while reasoning, before its first tool call.
     "sampling_max_tokens": 8192,
     # Training stops at whichever binds first: max_steps, or
-    # max_epochs * steps_per_epoch. With 600 prompts and batch 32 that is 19
-    # steps per epoch, so 6 epochs (114) is needed to actually reach 100 steps
-    # -- 5 epochs would silently stop at 95. Both are overridable via CLI.
-    "max_epochs": 6,
+    # max_epochs * steps_per_epoch. 640 prompts at the default batch of 128 is
+    # exactly 5 steps per epoch, so 20 epochs reach 100 steps.
+    "max_epochs": 20,
     "max_steps": 100,
-    "val_every": 10,
-    "lora_rank": 32,
-    "lora_alpha": 64,
-    # The workshop's 4e-5 is SOP-Bench task-specific tuning; carrying it over
-    # caused catastrophic drift on Nova (structured tool calling collapsed to
-    # raw text by step 15) and 4% raw-text drift on GPT-OSS by step 66. Raise
-    # it only with evidence.
-    "learning_rate": 1e-5,
-    "adam_beta1": 0.9,
-    "adam_beta2": 0.95,
-    # rollout_max_concurrency is the ONLY throttle on concurrent rollouts
-    # (AgentCore has no server-side cap). GA range [32, 96].
-    "rollout_max_concurrency": 32,
-    "rollout_timeout": 600,
-    "rollout_max_retries": 3,
-    "max_steps_off_policy": 3,
 }
 
 
