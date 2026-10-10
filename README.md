@@ -46,9 +46,8 @@ for use in a production environment.
 
 Wordle is a word game with a hidden five-letter word and six guesses. After
 each guess, every letter is marked green (right letter, right position),
-yellow (in the word, wrong position), or gray (not in the word). The best way
-to learn it is to play a round:
-[Wordle on the New York Times](https://www.nytimes.com/games/wordle/index.html).
+yellow (in the word, wrong position), or gray (not in the word). For the full
+rules, see [Wordle on Wikipedia](https://en.wikipedia.org/wiki/Wordle).
 
 ### Why multi-turn RL?
 
