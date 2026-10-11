@@ -253,6 +253,7 @@ Your caller needs `iam:PassRole` for `job.sagemaker.amazonaws.com` plus the
 │       ├── test_env.py             offline tests, no AWS needed
 │       └── data/                   SCOWL word lists + entropy: reward reference data, not training data
 ├── docs/architecture.{html,png}    the diagram above (SVG source + render)
+├── docs/training_settings.*        effort and temperature per stage (SVG source + render)
 ├── docs/plots/make_plots.py        regenerates the result charts from MLflow
 ├── build_word_lists.py             builds data/ from SCOWL + AGID (pinned, checksummed)
 ├── excluded_answers.txt            manual review: words never used as answers
@@ -611,14 +612,16 @@ The training service logs metrics to MLflow as it trains. Two tell the story:
   moves between 35% and 48% and ends at 37%. With 128 words, one point is
   about 1.3 words, so the swings after step 10 are mostly noise.
 
-The two sets of curves are sampled differently. Training rollouts use
-temperature 1.0; the service scores validation at **temperature 0**, with the
-effort the agent was deployed with (`low` here), and neither setting is
-configurable. The validation curve is a faithful signal that training works
-and shows where it levels off, but it understates the adapter by a wide
-margin, as the next section shows.
+The validation curve is a faithful signal that training works and shows where
+it levels off, but it understates the adapter by a wide margin, as the next
+section shows.
 
 ### Evaluation: trained vs. base model
+
+The training curve and the evaluation jobs use the same agent, reward, and
+held-out words, but not the same sampling settings:
+
+![Three stages. 1, Training: 100 steps, 128 words per step, 8 games per word, reasoning low, temperature 1.0. 2, Validation every 10 steps inside the training job: 128 held-out words, one game each, logged as val/reward/pass_at_1, reasoning low, temperature 0 fixed by the service. 3, Evaluation: separate jobs on the base and trained model at four settings (low or medium effort, temperature 0 or 1.0); the serving setting is medium effort and temperature 1.0, where the solve rate goes from 61% to 84%.](docs/training_settings.png)
 
 We evaluated the base model and the trained model package with SageMaker
 evaluation jobs, varying the two settings the curve holds fixed: **reasoning
@@ -738,8 +741,8 @@ that ended in exceptions.
 
 ### Lesson 5: The validation curve is not the serving number
 
-The training job scores validation at temperature 0 with the deployed
-reasoning effort, and you cannot change either. For this task greedy decoding
+Validation runs at fixed settings (see the
+[diagram](#evaluation-trained-vs-base-model)). For this task greedy decoding
 makes the model quit early, so the curve ended at 37% while the same model
 package scores 84% at medium effort and temperature 1.0. Run
 `run_mtrl_eval.py` at your serving settings before drawing conclusions, and use

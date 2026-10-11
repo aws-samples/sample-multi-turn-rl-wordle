@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1250 730" width="1250" height="730" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#B45309"/>
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0F172A" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+  <rect width="1250" height="730" fill="#FFFFFF"/>
+  <text x="30" y="44" font-size="24" font-weight="700" fill="#0F172A">How the model is trained, validated, and evaluated</text>
+  <text x="30" y="72" font-size="15" fill="#475569">Same agent and reward in every stage. Only the reasoning effort and sampling temperature change.</text>
+  <g filter="url(#shadow)">
+    <rect x="30" y="170" width="175" height="80" rx="10" fill="#F8FAFC" stroke="#CBD5E1"/>
+    <rect x="30" y="420" width="175" height="80" rx="10" fill="#F8FAFC" stroke="#CBD5E1"/>
+  </g>
+  <text x="117" y="200" text-anchor="middle" font-size="12" font-family="Menlo, Consolas, monospace" fill="#0F172A">training-data.jsonl</text>
+  <text x="117" y="226" text-anchor="middle" font-size="15" font-weight="600" fill="#334155">640 words</text>
+  <text x="117" y="450" text-anchor="middle" font-size="12" font-family="Menlo, Consolas, monospace" fill="#0F172A">validation-data.jsonl</text>
+  <text x="117" y="476" text-anchor="middle" font-size="15" font-weight="600" fill="#334155">128 held-out words</text>
+  <rect x="235" y="105" width="520" height="470" rx="16" fill="#F8FAFC" stroke="#94A3B8" stroke-dasharray="6 5"/>
+  <text x="255" y="134" font-size="14" font-weight="700" fill="#475569" letter-spacing="0.5">SAGEMAKER AI MTRL TRAINING JOB</text>
+  <g filter="url(#shadow)">
+    <rect x="262" y="152" width="466" height="190" rx="12" fill="#EEF2FF" stroke="#4F46E5" stroke-width="2"/>
+  </g>
+  <circle cx="292" cy="184" r="15" fill="#4F46E5"/>
+  <text x="292" y="190" text-anchor="middle" font-size="16" font-weight="700" fill="#FFFFFF">1</text>
+  <text x="318" y="191" font-size="19" font-weight="700" fill="#1E1B4B">Training</text>
+  <text x="282" y="226" font-size="14" fill="#312E81">100 steps · 128 words per step · 8 games per word</text>
+  <text x="282" y="248" font-size="14" fill="#312E81">The agent plays each word; GRPO compares the 8 games</text>
+  <text x="282" y="270" font-size="14" fill="#312E81">and updates the LoRA adapter.</text>
+  <rect x="282" y="290" width="150" height="34" rx="17" fill="#4F46E5"/>
+  <text x="357" y="312" text-anchor="middle" font-size="14" font-weight="600" fill="#FFFFFF">Reasoning: low</text>
+  <rect x="444" y="290" width="160" height="34" rx="17" fill="#FFFFFF" stroke="#4F46E5" stroke-width="2"/>
+  <text x="524" y="312" text-anchor="middle" font-size="14" font-weight="600" fill="#4F46E5">Temperature: 1.0</text>
+  <g filter="url(#shadow)">
+    <rect x="262" y="378" width="466" height="176" rx="12" fill="#FFFBEB" stroke="#B45309" stroke-width="2"/>
+  </g>
+  <circle cx="292" cy="410" r="15" fill="#B45309"/>
+  <text x="292" y="416" text-anchor="middle" font-size="16" font-weight="700" fill="#FFFFFF">2</text>
+  <text x="318" y="417" font-size="19" font-weight="700" fill="#451A03">Validation</text>
+  <text x="430" y="417" font-size="14" fill="#92400E">every 10 steps</text>
+  <text x="282" y="452" font-size="14" fill="#78350F">128 held-out words · 1 game each</text>
+  <text x="282" y="474" font-size="14" fill="#78350F">Logged to MLflow as </text>
+  <text x="418" y="474" font-size="13" font-family="Menlo, Consolas, monospace" fill="#78350F">val/reward/pass_at_1</text>
+  <rect x="282" y="498" width="150" height="34" rx="17" fill="#B45309"/>
+  <text x="357" y="520" text-anchor="middle" font-size="14" font-weight="600" fill="#FFFFFF">Reasoning: low</text>
+  <rect x="444" y="498" width="264" height="34" rx="17" fill="#FFFFFF" stroke="#B45309" stroke-width="2"/>
+  <text x="576" y="520" text-anchor="middle" font-size="14" font-weight="600" fill="#B45309">Temperature: 0 (fixed by service)</text>
+  <line x1="495" y1="342" x2="495" y2="374" stroke="#B45309" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrAmber)"/>
+  <text x="505" y="364" font-size="12" fill="#92400E">checkpoint</text>
+  <line x1="205" y1="210" x2="258" y2="210" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="205" y1="460" x2="258" y2="460" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <g filter="url(#shadow)">
+    <rect x="790" y="288" width="150" height="96" rx="12" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+  </g>
+  <text x="865" y="320" text-anchor="middle" font-size="14" font-weight="700" fill="#0F172A">Trained LoRA</text>
+  <text x="865" y="340" text-anchor="middle" font-size="14" font-weight="700" fill="#0F172A">adapter</text>
+  <text x="865" y="364" text-anchor="middle" font-size="12" fill="#475569">(model package)</text>
+  <line x1="755" y1="336" x2="786" y2="336" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="940" y1="336" x2="976" y2="336" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <g filter="url(#shadow)">
+    <rect x="980" y="152" width="242" height="384" rx="12" fill="#ECFDF5" stroke="#047857" stroke-width="2"/>
+  </g>
+  <circle cx="1010" cy="184" r="15" fill="#047857"/>
+  <text x="1010" y="190" text-anchor="middle" font-size="16" font-weight="700" fill="#FFFFFF">3</text>
+  <text x="1036" y="191" font-size="19" font-weight="700" fill="#022C22">Evaluation</text>
+  <text x="1000" y="226" font-size="14" fill="#065F46">Separate evaluation jobs,</text>
+  <text x="1000" y="247" font-size="14" fill="#065F46">base and trained model</text>
+  <text x="1000" y="268" font-size="14" fill="#065F46">4 settings: low or medium</text>
+  <text x="1000" y="289" font-size="14" fill="#065F46">effort, temperature 0 or 1.0</text>
+  <line x1="1000" y1="306" x2="1202" y2="306" stroke="#A7F3D0"/>
+  <text x="1000" y="330" font-size="14" font-weight="700" fill="#065F46">Serving setting</text>
+  <text x="1000" y="349" font-size="13" fill="#065F46">(the headline number)</text>
+  <rect x="1000" y="362" width="190" height="34" rx="17" fill="#047857"/>
+  <text x="1095" y="384" text-anchor="middle" font-size="14" font-weight="600" fill="#FFFFFF">Reasoning: medium</text>
+  <rect x="1000" y="406" width="190" height="34" rx="17" fill="#FFFFFF" stroke="#047857" stroke-width="2"/>
+  <text x="1095" y="428" text-anchor="middle" font-size="14" font-weight="600" fill="#047857">Temperature: 1.0</text>
+  <text x="1000" y="464" font-size="13" fill="#065F46">Medium is gpt-oss's default</text>
+  <text x="1000" y="483" font-size="13" fill="#065F46">reasoning effort.</text>
+  <text x="1000" y="512" font-size="15" font-weight="700" fill="#065F46">Solved: 61% → 84%</text>
+  <path d="M117,500 L117,600 L1101,600 L1101,540" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+  <rect x="520" y="588" width="216" height="24" rx="12" fill="#FFFFFF"/>
+  <text x="628" y="605" text-anchor="middle" font-size="13" fill="#475569">same held-out words</text>
+  <line x1="30" y1="640" x2="1220" y2="640" stroke="#E2E8F0"/>
+  <text x="30" y="668" font-size="13" font-weight="700" fill="#334155">Where each setting lives</text>
+  <text x="30" y="690" font-size="13" fill="#475569">Reasoning effort is set on the agent (REASONING_EFFORT in agentcore.json), so switching from low to medium means redeploying the agent before the evaluation job.</text>
+  <text x="30" y="710" font-size="13" fill="#475569">Temperature is set by the job. Training samples at 1.0 so the 8 games per word differ; the training job always runs validation at 0; the evaluation job lets you choose.</text>
+</svg>
