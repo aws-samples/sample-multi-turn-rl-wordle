@@ -2,6 +2,9 @@
 
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](LICENSE)
 
+This repository is the companion code for the AWS blog post
+[Multi-Turn Reinforcement Learning on Amazon SageMaker AI: A hands-on guide](https://aws.amazon.com/blogs/machine-learning/multi-turn-reinforcement-learning-on-amazon-sagemaker-ai-a-hands-on-guide/).
+
 This project trains an open-weight language model (**gpt-oss-20b**) to play
 Wordle using **SageMaker AI Multi-Turn Reinforcement Learning (MTRL)**. An
 agent hosted on Amazon Bedrock AgentCore plays the game, the policy model
